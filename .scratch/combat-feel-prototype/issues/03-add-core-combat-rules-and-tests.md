@@ -4,12 +4,16 @@
 
 **Blocked by:** 01 - Scaffold Browser Prototype
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The combat rules can be tested without booting the Phaser scene.
-- [ ] Tests cover 3-hit light combo progression and combo reset behavior.
-- [ ] Tests cover heavy attack outcomes separately from light attacks.
-- [ ] Tests cover damage and defeat counting.
-- [ ] Tests cover rage meter fill from landed hits.
-- [ ] Tests cover spending a full rage meter to empower one heavy attack.
-- [ ] Tests cover Block Cleared becoming true after 8 bully weirdos are defeated.
+- [x] The combat rules can be tested without booting the Phaser scene.
+- [x] Tests cover 3-hit light combo progression and combo reset behavior.
+- [x] Tests cover heavy attack outcomes separately from light attacks.
+- [x] Tests cover damage and defeat counting.
+- [x] Tests cover rage meter fill from landed hits.
+- [x] Tests cover spending a full rage meter to empower one heavy attack.
+- [x] Tests cover Block Cleared becoming true after 8 bully weirdos are defeated.
+
+## Answer
+
+Implemented a Phaser-free combat rules module covering light combo progression, heavy attack outcomes, damage, rage fill and spend, defeat counting, and the Block Cleared condition. Added fast Vitest coverage at the pure rules seam.
