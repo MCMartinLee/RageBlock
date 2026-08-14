@@ -7,8 +7,12 @@
 **Status:** ready-for-agent
 
 - [ ] The full six-chapter campaign can be completed from title screen to ending.
-- [ ] Chapter scores, ranks, unlockable rage effects, costume colors, and challenge modifiers work after completion.
+- [x] Chapter scores, ranks, unlockable rage effects, costume colors, and challenge modifiers work after completion.
 - [ ] Restart, checkpoint, pause, defeat, victory, and replay flows work from browser tests.
 - [ ] Full campaign completion has automated coverage for the critical happy path.
 - [ ] Tests, typecheck, production build, and performance checks pass.
-- [ ] README explains play, build, release, and deployment of the web build.
+- [x] README explains play, build, release, and deployment of the web build.
+
+## Progress
+
+Campaign runtime now provides rewards, score, ranks, modes, and modifiers, and the ending screen displays score and rank. Full six-chapter browser completion and dedicated replay UI remain open.

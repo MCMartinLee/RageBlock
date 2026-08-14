@@ -36,7 +36,7 @@ import {
 } from "./bullyPressure";
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 import { getCampaignChapter } from "../campaignDefinition";
-import { completeChapter, createCampaignState, type CampaignState } from "../campaignRuntime";
+import { completeChapter, createCampaignState, getCampaignRank, type CampaignState } from "../campaignRuntime";
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 import { getBossRule, getBossRuleLabel } from "./bossRules";
 import { isGamepadActionPressed } from "./inputActions";
@@ -821,6 +821,8 @@ export class PrototypeScene extends Phaser.Scene {
       `Time ${elapsedSeconds}s`,
       `Hits Landed ${this.hitsLanded}`,
       `Damage Taken ${this.damageTaken}`,
+      `Score ${this.campaignState.score}`,
+      `Rank ${getCampaignRank(this.campaignState.score)}`,
       "",
       "Press R to restart"
     ], {
