@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "e2e": "playwright test",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "npm test && npm run typecheck && npm run e2e"
   },
   "dependencies": {
     "phaser": "^3.90.0"

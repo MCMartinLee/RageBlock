@@ -1,33 +1,45 @@
 # RageBlock
 
-RageBlock is an original browser-based cartoon brawler about a kid with cartoon rage taking on three escalating neighborhood trouble spots: The Back Lot, Arcade Strip, and The Rooftop.
+RageBlock is an original, desktop-browser, single-player cartoon brawler. A kid with a stolen Rage Remote crosses six neighborhood blocks, knocks exaggerated troublemakers into scenery, raids optional side rooms, and faces the Block Captain at sunset.
 
-## Run locally
+**Play the release:** https://mcmartinlee.github.io/RageBlock/
+
+## How To Play
+
+- `WASD` or arrow keys: move
+- `J` or left click: light combo
+- `K` or right click: heavy launcher
+- `Space`, `Shift`, or `L`: run
+- `P`: pause or resume
+- `R`: restart, retry a checkpoint, or replay after victory
+- `T`: return to the title
+
+A standard gamepad is supported: left stick moves, `A` attacks or starts, `B` launches, right trigger runs, Menu pauses, `Y` restarts, and View returns to the title.
+
+Choose Crash, Zip, or Junkstorm mode on the title screen. Campaign checkpoints, best score, rewards, and the selected mode persist in local browser storage.
+
+## Run Locally
+
+Requires Node.js 22 or newer.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Open the URL Vite prints, usually `http://localhost:5173`.
-
-The current playable build enters through a title screen and contains the combat foundation for the three-chapter campaign. The campaign data lives in `src/campaignDefinition.ts` so arena waves, enemy variants, bosses, and progression can be expanded without rewriting the scene.
-
-## Prototype controls
-
-- WASD or arrow keys: move
-- J or left click: light combo
-- K or right click: heavy launcher
-- Space, Shift, or L: run
-- P: pause/resume
-- R: restart after Block Cleared or Knocked Out
-
-Attacks pressed during another attack are buffered and fire when the current hit finishes.
+Open the URL printed by Vite, normally `http://localhost:5173`.
 
 ## Verify
 
 ```bash
-npm test
-npm run typecheck
+npm run verify
 npm run build
 ```
+
+The release suite covers the real combat loop, all six chapter exits, checkpoint persistence, defeat and retry, pause, victory, replay, title return, narrow desktop scaling, visual states, startup payload, and frame cadence.
+
+## Release Maintenance
+
+Every push to `main` runs [the Pages workflow](.github/workflows/deploy-pages.yml). It installs dependencies, runs unit, type, browser, visual, and performance checks, creates a Vite build with the `/RageBlock/` base path, and deploys `dist` to GitHub Pages. A failed verification prevents deployment.
+
+Campaign content is defined in `src/campaignDefinition.ts`. Runtime progression and persistence live in `src/campaignRuntime.ts` and `src/campaignPersistence.ts`. Art direction and the reproducible asset-preparation pipeline are documented in `docs/art/visual-bible.md` and `scripts/`.
