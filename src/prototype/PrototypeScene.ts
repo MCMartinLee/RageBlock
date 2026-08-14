@@ -38,6 +38,7 @@ import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerA
 import { getCampaignChapter } from "../campaignDefinition";
 import { completeChapter, createCampaignState, type CampaignState } from "../campaignRuntime";
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
+import { getBossRule, getBossRuleLabel } from "./bossRules";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -655,7 +656,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.moodLabel.setText(this.getMoodLabel(decision.mood));
       bully.healthBar.setPosition(bully.position.x, bully.position.y - (bully.isBoss ? 112 : 86));
       bully.healthBar.setDisplaySize((bully.isBoss ? 96 : 48) * (bully.combat.health / (bully.isBoss ? 60 : bully.variant === "heavy" ? 30 : 18)), bully.isBoss ? 7 : 5);
-      if (bully.isBoss) bully.moodLabel.setText(decision.damagesPlayer ? "BOSS: CHARGE" : "BOSS: PRESSURE");
+      if (bully.isBoss) bully.moodLabel.setText(getBossRuleLabel(getBossRule(time - this.runStartedAt)));
 
       if (decision.damagesPlayer && time >= this.nextPlayerDamageAt) {
         this.playerState = {
