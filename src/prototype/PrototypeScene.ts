@@ -36,12 +36,13 @@ import {
 } from "./bullyPressure";
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 import { getCampaignChapter } from "../campaignDefinition";
-import { completeChapter, createCampaignState, getCampaignRank, getRageModeTuning, recordDefeat, recordPlayerDefeat, restartCampaign, type CampaignState } from "../campaignRuntime";
+import { completeChapter, completeSideRoom, createCampaignState, getCampaignRank, getRageModeTuning, recordDefeat, recordPlayerDefeat, restartCampaign, type CampaignState } from "../campaignRuntime";
 import { loadCampaign, saveCampaign } from "../campaignPersistence";
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 import { getBossRule, getBossRuleLabel } from "./bossRules";
 import { isGamepadActionPressed } from "./inputActions";
 import { getChapterWaveBlueprint } from "./chapterWaves";
+import { isChainReactionImpact } from "./chainReaction";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -65,6 +66,7 @@ type ToyboxProp = {
   position: Point;
   velocity: Point;
   state: PropState;
+  nextChainAt: number;
 };
 
 export class PrototypeScene extends Phaser.Scene {
@@ -104,6 +106,7 @@ export class PrototypeScene extends Phaser.Scene {
   private audioContext?: AudioContext;
   private ambientTimer?: Phaser.Time.TimerEvent;
   private previousGamepadButtons: boolean[] = [];
+  private chapterWorldLayer?: Phaser.GameObjects.Container;
   private exitOpen = false;
 
   constructor() {
@@ -313,6 +316,14 @@ export class PrototypeScene extends Phaser.Scene {
     this.attackLabel?.setColor(running ? "#8de0ff" : "#f5f0e8");
     this.playerAnimationState = getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running);
     this.stateLabel?.setText(`State ${this.playerAnimationState}`);
+    if (nextPosition.x <= ARENA_BOUNDS.left + 36 && this.campaignState.routeNode === 0) {
+      const chapter = getCampaignChapter(this.campaignChapter);
+      this.campaignState = completeSideRoom(this.campaignState, `${chapter.id}-side-room`);
+      saveCampaign(window.localStorage, this.campaignState);
+      this.attackLabel?.setText(`SIDE ROOM CLEAR | +250 | ${chapter.route[1].label}`);
+      this.updatePresentationLabels();
+      this.flashTarget(this.player, chapter.palette.accent, 220);
+    }
     if (this.exitOpen && nextPosition.x >= ARENA_BOUNDS.right - 42) {
       this.exitOpen = false;
       this.playerPosition = { ...PLAYER_SPAWN };
@@ -336,37 +347,34 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     this.updateBullyWeirdos(time, delta);
-    this.updateToyboxProps(delta);
+    this.updateToyboxProps(time, delta);
     this.publishDebugState();
   }
 
   private createSchoolyardCorner(width: number, height: number): void {
-    this.add.rectangle(width / 2, height / 2, width, height, 0x202129);
-    this.add.rectangle(width / 2, 152, width, 190, 0x2b3140);
-    this.add.rectangle(width / 2, 398, width, 284, 0x5f6367);
-    this.add.rectangle(width / 2, ARENA_BOUNDS.top - 18, width, 28, 0x3d4d48);
-
-    for (let x = 52; x < width; x += 64) {
-      this.add.rectangle(x, 214, 8, 72, 0x88907f);
-      this.add.rectangle(x + 30, 205, 60, 6, 0x88907f);
-      this.add.rectangle(x + 30, 230, 60, 6, 0x88907f);
+    this.chapterWorldLayer?.destroy(true);
+    const chapter = getCampaignChapter(this.campaignChapter);
+    const palette = chapter.palette;
+    const world = this.add.container(0, 0).setDepth(-1000);
+    world.add([
+      this.add.rectangle(width / 2, height / 2, width, height, palette.sky),
+      this.add.rectangle(width / 2, 398, width, 284, palette.ground),
+      this.add.rectangle(width / 2, 152, width, 190, palette.structure),
+      this.add.rectangle(width / 2, ARENA_BOUNDS.top - 18, width, 28, palette.accent),
+      this.add.text(38, 94, chapter.setting.toUpperCase(), { fontFamily: "Arial Black, Arial", fontSize: "26px", color: "#f5f0e8" }),
+      this.add.text(38, 126, `${chapter.route[0].label}  >  ${chapter.route[2].label}`, { fontFamily: "Arial", fontSize: "16px", color: "#f5f0e8" }),
+      this.add.rectangle((ARENA_BOUNDS.left + ARENA_BOUNDS.right) / 2, (ARENA_BOUNDS.top + ARENA_BOUNDS.bottom) / 2, ARENA_BOUNDS.right - ARENA_BOUNDS.left, ARENA_BOUNDS.bottom - ARENA_BOUNDS.top, 0x000000, 0).setStrokeStyle(3, palette.accent, 0.9)
+    ]);
+    for (let x = 70; x < width; x += 120) {
+      const marker = this.add.rectangle(x, 218, 74, 9, palette.accent, 0.65).setRotation((x % 3 - 1) * 0.04);
+      world.add(marker);
     }
-
-    this.add.rectangle(775, 328, 190, 38, 0x8f3f3f).setRotation(-0.02);
-    this.add.rectangle(720, 302, 52, 34, 0xb7d3db);
-    this.add.rectangle(836, 302, 52, 34, 0xb7d3db);
-    this.add.rectangle(775, 350, 206, 10, 0x2d2d31);
-
-    this.add
-      .rectangle(
-        (ARENA_BOUNDS.left + ARENA_BOUNDS.right) / 2,
-        (ARENA_BOUNDS.top + ARENA_BOUNDS.bottom) / 2,
-        ARENA_BOUNDS.right - ARENA_BOUNDS.left,
-        ARENA_BOUNDS.bottom - ARENA_BOUNDS.top,
-        0x000000,
-        0
-      )
-      .setStrokeStyle(2, 0xf0c15c, 0.8);
+    const hazard = this.add.rectangle(180, 288, 92, 18, palette.accent, 0.75).setStrokeStyle(2, 0xf5f0e8, 0.65);
+    const hazardLabel = this.add.text(0, -24, chapter.hazards[0].replaceAll("-", " ").toUpperCase(), { fontFamily: "Arial Black, Arial", fontSize: "11px", color: "#f5f0e8" }).setOrigin(0.5);
+    const hazardGroup = this.add.container(180, 288, [hazard, hazardLabel]);
+    world.add(hazardGroup);
+    this.tweens.add({ targets: hazardGroup, x: 780, duration: 3200 - this.campaignChapter * 180, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    this.chapterWorldLayer = world;
   }
 
   private createExitMarkers(): void {
@@ -377,6 +385,13 @@ export class PrototypeScene extends Phaser.Scene {
       this.add.text(-82, 72, "NEXT BLOCK", { fontFamily: "Arial Black, Arial", fontSize: "12px", color: "#f0c15c" })
     ]);
     exit.setDepth(20);
+    const side = this.add.container(ARENA_BOUNDS.left + 28, (ARENA_BOUNDS.top + ARENA_BOUNDS.bottom) / 2);
+    side.add([
+      this.add.rectangle(0, 0, 8, 96, 0x36d1dc, 0.7),
+      this.add.triangle(12, -36, 0, 0, -22, 14, -22, -14, 0x36d1dc, 0.9),
+      this.add.text(-16, 58, "SIDE ROOM", { fontFamily: "Arial Black, Arial", fontSize: "11px", color: "#36d1dc" }).setOrigin(0, 0.5)
+    ]);
+    side.setDepth(20);
   }
 
   private createPlayerSilhouette(x: number, y: number): Phaser.GameObjects.Container {
@@ -468,6 +483,7 @@ export class PrototypeScene extends Phaser.Scene {
       position,
       velocity: { x: 0, y: 0 },
       state: createPropState(kind)
+      , nextChainAt: 0
     };
   }
 
@@ -515,8 +531,18 @@ export class PrototypeScene extends Phaser.Scene {
       getState: () => ({
         player: { ...this.playerPosition },
         running: this.isRunning(),
-        runEnded: this.runEnded
-      })
+        runEnded: this.runEnded,
+        chapter: this.campaignChapter,
+        exitOpen: this.exitOpen,
+        mode: this.campaignState.mode,
+        score: this.campaignState.score,
+        completed: this.campaignState.completed
+      }),
+      clearWave: () => {
+        for (const bully of this.bullyWeirdos) bully.combat = { ...bully.combat, health: 0, defeated: true };
+        this.combatRun = { ...this.combatRun, defeatedBullyWeirdos: 8 };
+        this.openExitIfCleared();
+      }
     };
   }
 
@@ -714,7 +740,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.defeatLabel?.setText(`Defeated ${this.combatRun.defeatedBullyWeirdos}/8`);
   }
 
-  private updateToyboxProps(delta: number): void {
+  private updateToyboxProps(time: number, delta: number): void {
     const seconds = delta / 1000;
 
     for (const prop of this.toyboxProps) {
@@ -742,6 +768,24 @@ export class PrototypeScene extends Phaser.Scene {
       prop.body.setPosition(prop.position.x, prop.position.y);
       prop.body.setRotation(prop.body.rotation + prop.velocity.x * seconds * 0.01);
       prop.body.setDepth(Math.round(prop.position.y));
+
+      if (time >= prop.nextChainAt) {
+        const target = this.bullyWeirdos.find((bully) => !bully.combat.defeated && isChainReactionImpact(prop.position, prop.velocity, bully.position));
+        if (target) {
+          const chainAttack: AttackOutcome = { kind: "light", comboStep: null, damage: 4, knockback: 180, launch: false, empowered: false, rageGain: 12, nextComboStep: 0 };
+          const result = applyAttackToBullyWeirdo(this.combatRun, target.combat, chainAttack);
+          this.combatRun = result.run;
+          target.combat = result.bully;
+          target.knockbackVelocity = getKnockbackVelocity(chainAttack.knockback, prop.velocity.x < 0 ? "left" : "right", false);
+          target.moodLabel.setText("CHAIN HIT");
+          prop.nextChainAt = time + 500;
+          prop.velocity = { x: -prop.velocity.x * 0.35, y: -120 };
+          this.spawnHitSparks(target.position, 5, 0xffd23f);
+          if (target.combat.defeated) this.campaignState = recordDefeat(this.campaignState, 250);
+          this.updateRunLabels();
+          this.openExitIfCleared();
+        }
+      }
     }
   }
 
@@ -782,10 +826,13 @@ export class PrototypeScene extends Phaser.Scene {
       rage: this.combatRun.rage
     };
     this.updateRunLabels();
-    if (isBlockCleared(this.combatRun)) {
-      this.exitOpen = true;
-      this.attackLabel?.setText(this.campaignChapter < 5 ? "EXIT OPEN | Reach NEXT BLOCK" : "BOSS DOWN | Reach NEXT BLOCK");
-    }
+    this.openExitIfCleared();
+  }
+
+  private openExitIfCleared(): void {
+    if (!isBlockCleared(this.combatRun)) return;
+    this.exitOpen = true;
+    this.attackLabel?.setText(this.campaignChapter < 5 ? "EXIT OPEN | Reach NEXT BLOCK" : "BOSS DOWN | Reach NEXT BLOCK");
   }
 
   private advanceChapter(): void {
@@ -797,6 +844,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.healthBar.destroy();
     }
     this.spawnChapterWave();
+    this.createSchoolyardCorner(this.scale.width, this.scale.height);
     this.combatRun = { ...this.combatRun, defeatedBullyWeirdos: 0 };
     this.updateChapterLabel();
     this.flashTarget(this.player, 0xf0c15c, 220);

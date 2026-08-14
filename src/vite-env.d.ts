@@ -10,7 +10,13 @@ declare global {
         };
         running: boolean;
         runEnded: boolean;
+        chapter: number;
+        exitOpen: boolean;
+        mode: string;
+        score: number;
+        completed: boolean;
       };
+      clearWave: () => void;
     };
   }
 }

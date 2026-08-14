@@ -41,3 +41,27 @@ test("title and combat HUD remain usable on a narrow viewport", async ({ page })
   await page.keyboard.press("p");
   await page.waitForFunction(() => Boolean(window.__RAGEBLOCK__));
 });
+
+test("campaign advances through route exits to the ending", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("2");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => Boolean(window.__RAGEBLOCK__));
+  expect(await page.evaluate(() => window.__RAGEBLOCK__!.getState().mode)).toBe("zip");
+
+  for (let chapter = 0; chapter < 6; chapter += 1) {
+    await page.evaluate(() => window.__RAGEBLOCK__!.clearWave());
+    await page.keyboard.down(" ");
+    await page.keyboard.down("d");
+    await page.waitForFunction((expected) => {
+      const state = window.__RAGEBLOCK__!.getState();
+      return expected === 5 ? state.runEnded : state.chapter > expected;
+    }, chapter);
+    await page.keyboard.up("d");
+    await page.keyboard.up(" ");
+  }
+
+  const ending = await page.evaluate(() => window.__RAGEBLOCK__!.getState());
+  expect(ending.completed).toBe(true);
+  expect(ending.runEnded).toBe(true);
+});
