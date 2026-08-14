@@ -86,11 +86,15 @@ export class PrototypeScene extends Phaser.Scene {
     super(PROTOTYPE_SCENE_KEY);
   }
 
+  init(): void {
+    this.resetRunState();
+  }
+
   create(): void {
     const { width, height } = this.scale;
-    this.resetRunState();
     this.runStartedAt = this.time.now;
     this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
 
     this.cameras.main.setBounds(0, 0, width, height);
     this.cameras.main.centerOn(width / 2, height / 2);
@@ -114,6 +118,22 @@ export class PrototypeScene extends Phaser.Scene {
     ];
 
     this.cursors = this.input.keyboard?.createCursorKeys();
+    this.input.keyboard?.addCapture([
+      Phaser.Input.Keyboard.KeyCodes.UP,
+      Phaser.Input.Keyboard.KeyCodes.DOWN,
+      Phaser.Input.Keyboard.KeyCodes.LEFT,
+      Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      Phaser.Input.Keyboard.KeyCodes.W,
+      Phaser.Input.Keyboard.KeyCodes.A,
+      Phaser.Input.Keyboard.KeyCodes.S,
+      Phaser.Input.Keyboard.KeyCodes.D,
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
+      Phaser.Input.Keyboard.KeyCodes.SHIFT,
+      Phaser.Input.Keyboard.KeyCodes.L,
+      Phaser.Input.Keyboard.KeyCodes.J,
+      Phaser.Input.Keyboard.KeyCodes.K,
+      Phaser.Input.Keyboard.KeyCodes.R
+    ]);
     this.wasd = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -197,6 +217,7 @@ export class PrototypeScene extends Phaser.Scene {
       .setOrigin(1, 0);
     this.updateHealthLabel();
     this.updateRunLabels();
+    this.publishDebugState();
   }
 
   update(time: number, delta: number): void {
@@ -205,6 +226,9 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.restart)) {
+      this.time.timeScale = 1;
+      this.tweens.timeScale = 1;
+      this.input.keyboard?.resetKeys();
       this.scene.restart();
       return;
     }
@@ -239,6 +263,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.player.setPosition(nextPosition.x, nextPosition.y);
     this.player.setScale(this.facing === "right" ? 1 : -1, 1);
     this.player.setDepth(Math.round(nextPosition.y));
+    this.attackLabel?.setColor(this.isRunning() ? "#8de0ff" : "#f5f0e8");
 
     if (this.activeAttack && time >= this.attackingUntil) {
       this.activeAttack.destroy();
@@ -248,6 +273,7 @@ export class PrototypeScene extends Phaser.Scene {
 
     this.updateBullyWeirdos(time, delta);
     this.updateToyboxProps(delta);
+    this.publishDebugState();
   }
 
   private createSchoolyardCorner(width: number, height: number): void {
@@ -284,7 +310,7 @@ export class PrototypeScene extends Phaser.Scene {
     const legs = this.add.rectangle(0, 16, 32, 42, 0x232026);
     const hoodie = this.add.rectangle(0, -18, 54, 62, 0x7a3bd1);
     const head = this.add.circle(0, -62, 24, 0xf0b36f);
-    const hair = this.add.ellipse(0, -82, 42, 24, 0x17151b);
+    const hair = this.add.rectangle(0, -78, 36, 12, 0x5a3022).setRotation(-0.1);
     const leftEye = this.add.rectangle(-8, -64, 10, 4, 0xf7f0a1).setRotation(-0.25);
     const rightEye = this.add.rectangle(9, -64, 10, 4, 0xf7f0a1).setRotation(0.25);
 
@@ -394,6 +420,16 @@ export class PrototypeScene extends Phaser.Scene {
         this.actionKeys?.runAlt.isDown ||
         this.actionKeys?.runAlt2.isDown
     );
+  }
+
+  private publishDebugState(): void {
+    window.__RAGEBLOCK__ = {
+      getState: () => ({
+        player: { ...this.playerPosition },
+        running: this.isRunning(),
+        runEnded: this.runEnded
+      })
+    };
   }
 
   private resetRunState(): void {

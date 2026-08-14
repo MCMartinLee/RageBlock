@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 coverage/
+test-results/
 
 # Environment and local machine config
 .env

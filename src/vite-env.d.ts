@@ -1,0 +1,18 @@
+/// <reference types="vite/client" />
+
+declare global {
+  interface Window {
+    __RAGEBLOCK__?: {
+      getState: () => {
+        player: {
+          x: number;
+          y: number;
+        };
+        running: boolean;
+        runEnded: boolean;
+      };
+    };
+  }
+}
+
+export {};
