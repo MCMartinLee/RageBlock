@@ -15,4 +15,4 @@
 
 ## Progress
 
-Title screen, pause overlay, chapter HUD, state HUD, and controls are implemented. Audio placeholders and the final art pass remain.
+Title screen, pause overlay, chapter HUD, state HUD, hit tones, and controls are implemented. Ambient music and the final art pass remain.

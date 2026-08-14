@@ -8,8 +8,12 @@
 
 - [ ] Full game can be completed from title screen to ending.
 - [ ] Restart works after loss and win.
-- [ ] Automated tests pass.
+- [x] Automated tests pass.
 - [x] Typecheck passes.
 - [x] Production build passes.
 - [x] README explains how to run, build, and play.
-- [ ] The web build is ready to deploy or upload.
+- [x] The web build is ready to deploy or upload.
+
+## Progress
+
+Title-screen entry is covered by Playwright, and the full test, typecheck, build, and browser smoke commands pass. Full boss-completion automation remains a future campaign QA addition.
