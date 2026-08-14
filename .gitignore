@@ -11,9 +11,6 @@ coverage/
 .env.*
 !.env.example
 
-# Local agent scratch work
-.scratch/
-
 # Logs
 *.log
 npm-debug.log*
