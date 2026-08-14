@@ -25,6 +25,7 @@ import {
 } from "./arenaDefinition";
 import { getAttackPresentation, type FacingDirection } from "./attackPresentation";
 import { createAttackHitbox, getKnockbackVelocity, isPointInsideHitbox } from "./hitDetection";
+import { getHitFeedback } from "./hitFeedback";
 import {
   createBullyPressureState,
   updateBullyPressure,
@@ -402,6 +403,7 @@ export class PrototypeScene extends Phaser.Scene {
         this.damageTaken += BULLY_DAMAGE;
         this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
         this.updateHealthLabel();
+        this.flashTarget(this.player, 0x8de0ff, 120);
       }
     }
   }
@@ -435,6 +437,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.knockbackVelocity = getKnockbackVelocity(attack.knockback, this.facing, attack.launch);
       bully.moodLabel.setText(attack.launch ? "launched" : "hit");
       bully.healthBar.setDisplaySize(48 * (bully.combat.health / 18), 5);
+      this.playHitFeedback(attack, bully);
 
       if (bully.combat.defeated) {
         bully.body.setAlpha(0.35);
@@ -447,5 +450,89 @@ export class PrototypeScene extends Phaser.Scene {
       rage: this.combatRun.rage
     };
     this.updateRunLabels();
+  }
+
+  private playHitFeedback(attack: AttackOutcome, bully: BullyActor): void {
+    const feedback = getHitFeedback(attack);
+    const impact = {
+      x: (this.playerPosition.x + bully.position.x) / 2,
+      y: bully.position.y - 42
+    };
+
+    this.time.timeScale = 0.05;
+    this.time.delayedCall(feedback.hitPauseMs, () => {
+      this.time.timeScale = 1;
+    });
+
+    if (feedback.shakeDurationMs > 0) {
+      this.cameras.main.shake(feedback.shakeDurationMs, feedback.shakeIntensity);
+    }
+
+    this.spawnHitSparks(impact, feedback.sparkCount, attack.kind === "heavy" ? 0xff5f4d : 0xf0c15c);
+    this.squashTarget(bully.body, feedback.squashScale.x, feedback.squashScale.y, feedback.hitPauseMs + 85);
+    this.flashTarget(bully.body, 0xf5f0e8, feedback.flashMs);
+  }
+
+  private spawnHitSparks(position: Point, count: number, color: number): void {
+    for (let index = 0; index < count; index += 1) {
+      const angle = (Math.PI * 2 * index) / count;
+      const spark = this.add.circle(position.x, position.y, 4, color, 0.95);
+      spark.setDepth(1000);
+
+      this.tweens.add({
+        targets: spark,
+        x: position.x + Math.cos(angle) * Phaser.Math.Between(24, 58),
+        y: position.y + Math.sin(angle) * Phaser.Math.Between(14, 36),
+        alpha: 0,
+        scale: 0.2,
+        duration: 180,
+        ease: "Quad.easeOut",
+        onComplete: () => spark.destroy()
+      });
+    }
+  }
+
+  private squashTarget(
+    target: Phaser.GameObjects.Container,
+    scaleX: number,
+    scaleY: number,
+    duration: number
+  ): void {
+    this.tweens.killTweensOf(target);
+    this.tweens.add({
+      targets: target,
+      scaleX,
+      scaleY,
+      duration: 45,
+      yoyo: true,
+      ease: "Quad.easeOut",
+      onComplete: () => {
+        target.setScale(target.scaleX < 0 ? -1 : 1, 1);
+      }
+    });
+
+    this.time.delayedCall(duration, () => {
+      target.setScale(target.scaleX < 0 ? -1 : 1, 1);
+    });
+  }
+
+  private flashTarget(
+    target: Phaser.GameObjects.Container | undefined,
+    color: number,
+    duration: number
+  ): void {
+    if (!target) {
+      return;
+    }
+
+    const flash = this.add.rectangle(target.x, target.y - 32, 64, 86, color, 0.28);
+    flash.setDepth(target.depth + 20);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration,
+      ease: "Quad.easeOut",
+      onComplete: () => flash.destroy()
+    });
   }
 }
