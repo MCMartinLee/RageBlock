@@ -40,6 +40,7 @@ import { completeChapter, createCampaignState, getCampaignRank, type CampaignSta
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 import { getBossRule, getBossRuleLabel } from "./bossRules";
 import { isGamepadActionPressed } from "./inputActions";
+import { getChapterWaveBlueprint } from "./chapterWaves";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -124,16 +125,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.createSchoolyardCorner(width, height);
     this.createExitMarkers();
     this.player = this.createPlayerSilhouette(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
-    this.bullyWeirdos = [
-      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, "charger"),
-      this.createBullyWeirdo({ x: 620, y: 455 }, 160, false, "bully"),
-      this.createBullyWeirdo({ x: 820, y: 430 }, 320, true, "charger"),
-      this.createBullyWeirdo({ x: 760, y: 465 }, 480, false, "thrower"),
-      this.createBullyWeirdo({ x: 675, y: 315 }, 640, true, "charger"),
-      this.createBullyWeirdo({ x: 860, y: 360 }, 800, false, "heavy"),
-      this.createBullyWeirdo({ x: 585, y: 395 }, 960, true, "charger"),
-      this.createBullyWeirdo({ x: 805, y: 485 }, 1120, false, "bully")
-    ];
+    this.spawnChapterWave();
     this.toyboxProps = [
       this.createToyboxProp("cone", { x: 430, y: 452 }),
       this.createToyboxProp("trash-can", { x: 535, y: 340 }),
@@ -786,19 +778,15 @@ export class PrototypeScene extends Phaser.Scene {
       bully.body.destroy();
       bully.healthBar.destroy();
     }
-    this.bullyWeirdos = [
-      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, this.campaignChapter === 1 ? "thrower" : "heavy", this.campaignChapter === 5),
-      this.createBullyWeirdo({ x: 620, y: 455 }, 160, false, "bully"),
-      this.createBullyWeirdo({ x: 820, y: 430 }, 320, true, "charger"),
-      this.createBullyWeirdo({ x: 760, y: 465 }, 480, false, this.campaignChapter === 1 ? "thrower" : "heavy"),
-      this.createBullyWeirdo({ x: 675, y: 315 }, 640, true, "charger"),
-      this.createBullyWeirdo({ x: 860, y: 360 }, 800, false, "heavy"),
-      this.createBullyWeirdo({ x: 585, y: 395 }, 960, true, "charger"),
-      this.createBullyWeirdo({ x: 805, y: 485 }, 1120, false, "bully")
-    ];
+    this.spawnChapterWave();
     this.combatRun = { ...this.combatRun, defeatedBullyWeirdos: 0 };
     this.updateChapterLabel();
     this.flashTarget(this.player, 0xf0c15c, 220);
+  }
+
+  private spawnChapterWave(): void {
+    this.bullyWeirdos = getChapterWaveBlueprint(this.campaignChapter)
+      .map((entry) => this.createBullyWeirdo(entry.position, entry.delayMs, entry.canCharge, entry.variant === "boss" ? "heavy" : entry.variant, entry.variant === "boss"));
   }
 
   private endRun(title: "Block Cleared" | "Knocked Out"): void {
