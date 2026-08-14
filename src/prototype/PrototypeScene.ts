@@ -35,6 +35,7 @@ import {
   type BullyMood
 } from "./bullyPressure";
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
+import { getCampaignChapter } from "../campaignDefinition";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -84,6 +85,8 @@ export class PrototypeScene extends Phaser.Scene {
   private bullyWeirdos: BullyActor[] = [];
   private toyboxProps: ToyboxProp[] = [];
   private nextPlayerDamageAt = 0;
+  private campaignChapter = 0;
+  private chapterLabel?: Phaser.GameObjects.Text;
 
   constructor() {
     super(PROTOTYPE_SCENE_KEY);
@@ -218,6 +221,7 @@ export class PrototypeScene extends Phaser.Scene {
         color: "#f5f0e8"
       })
       .setOrigin(1, 0);
+    this.chapterLabel = this.add.text(width - 24, 174, "", { fontFamily: "Arial, sans-serif", fontSize: "18px", color: "#f0c15c" }).setOrigin(1, 0);
     this.stateLabel = this.add
       .text(width - 24, 144, "State idle", {
         fontFamily: "Arial, sans-serif",
@@ -227,6 +231,7 @@ export class PrototypeScene extends Phaser.Scene {
       .setOrigin(1, 0);
     this.updateHealthLabel();
     this.updateRunLabels();
+    this.updateChapterLabel();
     this.publishDebugState();
   }
 
@@ -464,6 +469,12 @@ export class PrototypeScene extends Phaser.Scene {
     this.bullyWeirdos = [];
     this.toyboxProps = [];
     this.nextPlayerDamageAt = 0;
+    this.campaignChapter = 0;
+  }
+
+  private updateChapterLabel(): void {
+    const chapter = getCampaignChapter(this.campaignChapter);
+    this.chapterLabel?.setText(`Chapter ${this.campaignChapter + 1}/3: ${chapter.title}`);
   }
 
   private performLightAttack(time: number): void {
@@ -653,8 +664,33 @@ export class PrototypeScene extends Phaser.Scene {
     };
     this.updateRunLabels();
     if (isBlockCleared(this.combatRun)) {
-      this.endRun("Block Cleared");
+      if (this.campaignChapter < 2) {
+        this.advanceChapter();
+      } else {
+        this.endRun("Block Cleared");
+      }
     }
+  }
+
+  private advanceChapter(): void {
+    this.campaignChapter += 1;
+    for (const bully of this.bullyWeirdos) {
+      bully.body.destroy();
+      bully.healthBar.destroy();
+    }
+    this.bullyWeirdos = [
+      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true),
+      this.createBullyWeirdo({ x: 620, y: 455 }, 160, false),
+      this.createBullyWeirdo({ x: 820, y: 430 }, 320, true),
+      this.createBullyWeirdo({ x: 760, y: 465 }, 480, false),
+      this.createBullyWeirdo({ x: 675, y: 315 }, 640, true),
+      this.createBullyWeirdo({ x: 860, y: 360 }, 800, false),
+      this.createBullyWeirdo({ x: 585, y: 395 }, 960, true),
+      this.createBullyWeirdo({ x: 805, y: 485 }, 1120, false)
+    ];
+    this.combatRun = { ...this.combatRun, defeatedBullyWeirdos: 0 };
+    this.updateChapterLabel();
+    this.flashTarget(this.player, 0xf0c15c, 220);
   }
 
   private endRun(title: "Block Cleared" | "Knocked Out"): void {
