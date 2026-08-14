@@ -94,6 +94,8 @@ export class PrototypeScene extends Phaser.Scene {
   private campaignChapter = 0;
   private campaignState: CampaignState = createCampaignState();
   private chapterLabel?: Phaser.GameObjects.Text;
+  private scoreLabel?: Phaser.GameObjects.Text;
+  private modeLabel?: Phaser.GameObjects.Text;
   private paused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
   private audioContext?: AudioContext;
@@ -184,6 +186,7 @@ export class PrototypeScene extends Phaser.Scene {
         fontSize: "30px",
         color: "#f5f0e8"
       });
+    this.add.rectangle(width - 150, 108, 270, 166, 0x16171d, 0.72).setStrokeStyle(2, 0xf0c15c, 0.5).setOrigin(0.5);
 
     this.add
       .text(24, 54, PROTOTYPE_SUBTITLE, {
@@ -235,6 +238,8 @@ export class PrototypeScene extends Phaser.Scene {
         color: "#f5f0e8"
       })
       .setOrigin(1, 0);
+    this.scoreLabel = this.add.text(width - 24, 204, "Score 0", { fontFamily: "Arial Black, Arial", fontSize: "18px", color: "#f5f0e8" }).setOrigin(1, 0);
+    this.modeLabel = this.add.text(width - 24, 234, "Remote CRASH", { fontFamily: "Arial Black, Arial", fontSize: "16px", color: "#bca7ff" }).setOrigin(1, 0);
     this.chapterLabel = this.add.text(width - 24, 174, "", { fontFamily: "Arial, sans-serif", fontSize: "18px", color: "#f0c15c" }).setOrigin(1, 0);
     this.stateLabel = this.add
       .text(width - 24, 144, "State idle", {
@@ -246,6 +251,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.updateHealthLabel();
     this.updateRunLabels();
     this.updateChapterLabel();
+    this.updatePresentationLabels();
     this.publishDebugState();
   }
 
@@ -462,9 +468,12 @@ export class PrototypeScene extends Phaser.Scene {
     const up = this.cursors?.up.isDown || this.wasd?.up.isDown;
     const down = this.cursors?.down.isDown || this.wasd?.down.isDown;
 
+    const pad = this.input.gamepad?.getPad(0);
+    const padX = pad ? (Math.abs(pad.axes[0]?.getValue() ?? 0) > 0.2 ? pad.axes[0].getValue() : 0) : 0;
+    const padY = pad ? (Math.abs(pad.axes[1]?.getValue() ?? 0) > 0.2 ? pad.axes[1].getValue() : 0) : 0;
     const movement = {
-      x: Number(Boolean(right)) - Number(Boolean(left)),
-      y: Number(Boolean(down)) - Number(Boolean(up))
+      x: padX || Number(Boolean(right)) - Number(Boolean(left)),
+      y: padY || Number(Boolean(down)) - Number(Boolean(up))
     };
 
     if (movement.x !== 0 && movement.y !== 0) {
@@ -479,11 +488,17 @@ export class PrototypeScene extends Phaser.Scene {
   }
 
   private isRunning(): boolean {
+    const pad = this.input.gamepad?.getPad(0);
     return Boolean(
       this.actionKeys?.run.isDown ||
         this.actionKeys?.runAlt.isDown ||
-        this.actionKeys?.runAlt2.isDown
+        this.actionKeys?.runAlt2.isDown || pad?.R2
     );
+  }
+
+  private updatePresentationLabels(): void {
+    this.scoreLabel?.setText(`Score ${this.campaignState.score}`);
+    this.modeLabel?.setText(`Remote ${this.campaignState.mode.toUpperCase()}`);
   }
 
   private publishDebugState(): void {
