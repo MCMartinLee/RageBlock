@@ -4,10 +4,14 @@
 
 **Blocked by:** 01 - Fix Prototype Playtest Blockers
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Movement, run, attacks, and restart are reliable.
-- [ ] The player has clear idle, move, run, light, heavy, hurt, defeated, and win states.
-- [ ] Input buffering prevents attacks from feeling dropped.
-- [ ] The controller remains readable with programmer-art-plus visuals.
-- [ ] Controls are documented in-game and in README.
+- [x] Movement, run, attacks, and restart are reliable.
+- [x] The player has clear idle, move, run, light, heavy, hurt, defeated, and win states.
+- [x] Input buffering prevents attacks from feeling dropped.
+- [x] The controller remains readable with programmer-art-plus visuals.
+- [x] Controls are documented in-game and in README.
+
+## Answer
+
+Implemented a tested player controller state helper, buffered light/heavy attacks, visible player state HUD, hurt/win/defeated state reporting, and updated controls documentation. Verified with `npm test`, `npm run typecheck`, `npm run build`, and `npm run e2e`.

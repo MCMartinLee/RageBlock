@@ -34,6 +34,7 @@ import {
   type BullyPressureState,
   type BullyMood
 } from "./bullyPressure";
+import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -68,11 +69,13 @@ export class PrototypeScene extends Phaser.Scene {
   private playerState: PlayerState = createPlayerState();
   private combatRun: CombatRunState = createCombatRunState();
   private attackingUntil = 0;
+  private bufferedAttack?: PlayerAction;
   private activeAttack?: Phaser.GameObjects.Container;
   private attackLabel?: Phaser.GameObjects.Text;
   private healthLabel?: Phaser.GameObjects.Text;
   private rageLabel?: Phaser.GameObjects.Text;
   private defeatLabel?: Phaser.GameObjects.Text;
+  private stateLabel?: Phaser.GameObjects.Text;
   private damageTaken = 0;
   private hitsLanded = 0;
   private runStartedAt = 0;
@@ -151,11 +154,11 @@ export class PrototypeScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
-        this.performHeavyAttack(this.time.now);
+        this.requestAttack("heavy", this.time.now);
         return;
       }
 
-      this.performLightAttack(this.time.now);
+      this.requestAttack("light", this.time.now);
     });
 
     this.add
@@ -215,6 +218,13 @@ export class PrototypeScene extends Phaser.Scene {
         color: "#f5f0e8"
       })
       .setOrigin(1, 0);
+    this.stateLabel = this.add
+      .text(width - 24, 144, "State idle", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        color: "#bca7ff"
+      })
+      .setOrigin(1, 0);
     this.updateHealthLabel();
     this.updateRunLabels();
     this.publishDebugState();
@@ -238,14 +248,15 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.light)) {
-      this.performLightAttack(time);
+      this.requestAttack("light", time);
     }
 
     if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.heavy)) {
-      this.performHeavyAttack(time);
+      this.requestAttack("heavy", time);
     }
 
     const movement = this.getMovementInput();
+    const running = this.isRunning();
     if (movement.x < 0) {
       this.facing = "left";
     } else if (movement.x > 0) {
@@ -253,7 +264,7 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     const seconds = delta / 1000;
-    const speed = PLAYER_SPEED * (this.isRunning() ? PLAYER_RUN_MULTIPLIER : 1);
+    const speed = PLAYER_SPEED * (running ? PLAYER_RUN_MULTIPLIER : 1);
     const nextPosition = clampToArena({
       x: this.playerPosition.x + movement.x * speed * seconds,
       y: this.playerPosition.y + movement.y * speed * seconds
@@ -263,12 +274,17 @@ export class PrototypeScene extends Phaser.Scene {
     this.player.setPosition(nextPosition.x, nextPosition.y);
     this.player.setScale(this.facing === "right" ? 1 : -1, 1);
     this.player.setDepth(Math.round(nextPosition.y));
-    this.attackLabel?.setColor(this.isRunning() ? "#8de0ff" : "#f5f0e8");
+    this.attackLabel?.setColor(running ? "#8de0ff" : "#f5f0e8");
+    this.stateLabel?.setText(`State ${getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running)}`);
 
     if (this.activeAttack && time >= this.attackingUntil) {
       this.activeAttack.destroy();
       this.activeAttack = undefined;
       this.attackLabel?.setText("Ready");
+      const queued = consumeBufferedAttack(this.bufferedAttack);
+      this.bufferedAttack = undefined;
+      if (queued === "light") this.performLightAttack(time);
+      if (queued === "heavy") this.performHeavyAttack(time);
     }
 
     this.updateBullyWeirdos(time, delta);
@@ -439,6 +455,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.playerState = createPlayerState();
     this.combatRun = createCombatRunState();
     this.attackingUntil = 0;
+    this.bufferedAttack = undefined;
     this.activeAttack = undefined;
     this.damageTaken = 0;
     this.hitsLanded = 0;
@@ -453,6 +470,16 @@ export class PrototypeScene extends Phaser.Scene {
     const attack = getLightComboAttack(this.comboStep);
     this.comboStep = attack.nextComboStep;
     this.showAttack(attack, time);
+  }
+
+  private requestAttack(action: PlayerAction, time: number): void {
+    if (this.activeAttack && time < this.attackingUntil) {
+      this.bufferedAttack = bufferAttack(this.bufferedAttack, action);
+      this.attackLabel?.setText(`${action} queued`);
+      return;
+    }
+    if (action === "light") this.performLightAttack(time);
+    else this.performHeavyAttack(time);
   }
 
   private performHeavyAttack(time: number): void {
@@ -496,6 +523,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.activeAttack.setDepth(Math.round(this.playerPosition.y) + 10);
     this.attackingUntil = time + presentation.durationMs;
     this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
+    this.stateLabel?.setText(`State ${attack.kind}`);
     this.applyAttackToBullyWeirdos(attack, hitboxShape);
     this.applyAttackToToyboxProps(attack, hitboxShape);
   }
@@ -540,6 +568,7 @@ export class PrototypeScene extends Phaser.Scene {
         };
         this.damageTaken += BULLY_DAMAGE;
         this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
+        this.stateLabel?.setText("State hurt");
         this.updateHealthLabel();
         this.flashTarget(this.player, 0x8de0ff, 120);
         if (this.playerState.health <= 0) {
@@ -634,6 +663,7 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     this.runEnded = true;
+    this.stateLabel?.setText(title === "Block Cleared" ? "State win" : "State defeated");
     const elapsedSeconds = Math.max(0, Math.round((this.time.now - this.runStartedAt) / 1000));
     const { width, height } = this.scale;
     const panel = this.add.rectangle(0, 0, 420, 250, 0x16171d, 0.92).setStrokeStyle(3, 0xf0c15c);
