@@ -5,10 +5,15 @@ import {
   PROTOTYPE_TITLE
 } from "./prototypeDefinition";
 import {
+  applyAttackToBullyWeirdo,
+  createBullyWeirdoState,
+  createCombatRunState,
   createPlayerState,
   getLightComboAttack,
   spendRageOnHeavyAttack,
   type AttackOutcome,
+  type BullyWeirdoState,
+  type CombatRunState,
   type PlayerState
 } from "./combatRules";
 import {
@@ -19,6 +24,7 @@ import {
   type Point
 } from "./arenaDefinition";
 import { getAttackPresentation, type FacingDirection } from "./attackPresentation";
+import { createAttackHitbox, getKnockbackVelocity, isPointInsideHitbox } from "./hitDetection";
 import {
   createBullyPressureState,
   updateBullyPressure,
@@ -33,8 +39,11 @@ const PLAYER_DAMAGE_COOLDOWN_MS = 850;
 type BullyActor = {
   body: Phaser.GameObjects.Container;
   position: Point;
+  knockbackVelocity: Point;
   pressure: BullyPressureState;
+  combat: BullyWeirdoState;
   moodLabel: Phaser.GameObjects.Text;
+  healthBar: Phaser.GameObjects.Rectangle;
 };
 
 export class PrototypeScene extends Phaser.Scene {
@@ -46,10 +55,14 @@ export class PrototypeScene extends Phaser.Scene {
   private facing: FacingDirection = "right";
   private comboStep = 0;
   private playerState: PlayerState = createPlayerState();
+  private combatRun: CombatRunState = createCombatRunState();
   private attackingUntil = 0;
   private activeAttack?: Phaser.GameObjects.Container;
   private attackLabel?: Phaser.GameObjects.Text;
   private healthLabel?: Phaser.GameObjects.Text;
+  private rageLabel?: Phaser.GameObjects.Text;
+  private defeatLabel?: Phaser.GameObjects.Text;
+  private damageTaken = 0;
   private bullyWeirdos: BullyActor[] = [];
   private nextPlayerDamageAt = 0;
 
@@ -135,7 +148,22 @@ export class PrototypeScene extends Phaser.Scene {
         color: "#8de0ff"
       })
       .setOrigin(1, 0);
+    this.rageLabel = this.add
+      .text(width - 24, 84, "", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        color: "#f0c15c"
+      })
+      .setOrigin(1, 0);
+    this.defeatLabel = this.add
+      .text(width - 24, 114, "", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        color: "#f5f0e8"
+      })
+      .setOrigin(1, 0);
     this.updateHealthLabel();
+    this.updateRunLabels();
   }
 
   update(time: number, delta: number): void {
@@ -253,8 +281,11 @@ export class PrototypeScene extends Phaser.Scene {
     return {
       body,
       position,
+      knockbackVelocity: { x: 0, y: 0 },
       pressure: createBullyPressureState(this.time.now + delayMs, canCharge),
-      moodLabel
+      combat: createBullyWeirdoState(),
+      moodLabel,
+      healthBar: this.add.rectangle(position.x, position.y - 86, 48, 5, 0x8de0ff)
     };
   }
 
@@ -289,14 +320,20 @@ export class PrototypeScene extends Phaser.Scene {
   private performHeavyAttack(time: number): void {
     const result = spendRageOnHeavyAttack(this.playerState);
     this.playerState = result.player;
+    this.combatRun = {
+      ...this.combatRun,
+      rage: result.player.rage
+    };
     this.comboStep = 0;
+    this.updateRunLabels();
     this.showAttack(result.attack, time);
   }
 
   private showAttack(attack: AttackOutcome, time: number): void {
     const presentation = getAttackPresentation(attack, this.facing);
-    const x = this.playerPosition.x + presentation.hitboxOffsetX;
-    const y = this.playerPosition.y - 30;
+    const hitboxShape = createAttackHitbox(this.playerPosition, presentation);
+    const x = hitboxShape.center.x;
+    const y = hitboxShape.center.y;
 
     this.activeAttack?.destroy();
     this.activeAttack = this.add.container(x, y);
@@ -321,12 +358,19 @@ export class PrototypeScene extends Phaser.Scene {
     this.activeAttack.setDepth(Math.round(this.playerPosition.y) + 10);
     this.attackingUntil = time + presentation.durationMs;
     this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
+    this.applyAttackToBullyWeirdos(attack, hitboxShape);
   }
 
   private updateBullyWeirdos(time: number, delta: number): void {
     const seconds = delta / 1000;
 
     for (const bully of this.bullyWeirdos) {
+      if (bully.combat.defeated) {
+        bully.body.setAlpha(0.35);
+        bully.moodLabel.setText("defeated");
+        continue;
+      }
+
       const { state, decision } = updateBullyPressure(
         bully.pressure,
         bully.position,
@@ -334,21 +378,28 @@ export class PrototypeScene extends Phaser.Scene {
         time
       );
       bully.pressure = state;
+      bully.knockbackVelocity = {
+        x: bully.knockbackVelocity.x * 0.88,
+        y: bully.knockbackVelocity.y * 0.78
+      };
       bully.position = clampToArena({
-        x: bully.position.x + decision.velocity.x * seconds,
-        y: bully.position.y + decision.velocity.y * seconds
+        x: bully.position.x + (decision.velocity.x + bully.knockbackVelocity.x) * seconds,
+        y: bully.position.y + (decision.velocity.y + bully.knockbackVelocity.y) * seconds
       });
 
       bully.body.setPosition(bully.position.x, bully.position.y);
       bully.body.setDepth(Math.round(bully.position.y));
       bully.body.setScale(decision.velocity.x < 0 ? -1 : 1, 1);
       bully.moodLabel.setText(this.getMoodLabel(decision.mood));
+      bully.healthBar.setPosition(bully.position.x, bully.position.y - 86);
+      bully.healthBar.setDisplaySize(48 * (bully.combat.health / 18), 5);
 
       if (decision.damagesPlayer && time >= this.nextPlayerDamageAt) {
         this.playerState = {
           ...this.playerState,
           health: Math.max(0, this.playerState.health - BULLY_DAMAGE)
         };
+        this.damageTaken += BULLY_DAMAGE;
         this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
         this.updateHealthLabel();
       }
@@ -356,7 +407,12 @@ export class PrototypeScene extends Phaser.Scene {
   }
 
   private updateHealthLabel(): void {
-    this.healthLabel?.setText(`Health ${this.playerState.health}`);
+    this.healthLabel?.setText(`Health ${this.playerState.health} | Taken ${this.damageTaken}`);
+  }
+
+  private updateRunLabels(): void {
+    this.rageLabel?.setText(`Rage ${this.combatRun.rage}/100`);
+    this.defeatLabel?.setText(`Defeated ${this.combatRun.defeatedBullyWeirdos}/8`);
   }
 
   private getMoodLabel(mood: BullyMood): string {
@@ -365,5 +421,31 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     return mood;
+  }
+
+  private applyAttackToBullyWeirdos(attack: AttackOutcome, hitboxShape: ReturnType<typeof createAttackHitbox>): void {
+    for (const bully of this.bullyWeirdos) {
+      if (bully.combat.defeated || !isPointInsideHitbox(bully.position, hitboxShape)) {
+        continue;
+      }
+
+      const result = applyAttackToBullyWeirdo(this.combatRun, bully.combat, attack);
+      this.combatRun = result.run;
+      bully.combat = result.bully;
+      bully.knockbackVelocity = getKnockbackVelocity(attack.knockback, this.facing, attack.launch);
+      bully.moodLabel.setText(attack.launch ? "launched" : "hit");
+      bully.healthBar.setDisplaySize(48 * (bully.combat.health / 18), 5);
+
+      if (bully.combat.defeated) {
+        bully.body.setAlpha(0.35);
+        bully.healthBar.setAlpha(0.25);
+      }
+    }
+
+    this.playerState = {
+      ...this.playerState,
+      rage: this.combatRun.rage
+    };
+    this.updateRunLabels();
   }
 }
