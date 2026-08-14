@@ -13,7 +13,7 @@ export type ArenaBounds = {
 export const ARENA_BOUNDS: ArenaBounds = {
   left: 72,
   right: 888,
-  top: 250,
+  top: 160,
   bottom: 488
 };
 
@@ -25,8 +25,7 @@ export const PLAYER_SPAWN: Point = {
 export const RESERVED_CONTROLS = {
   lightAttack: ["J", "Left click"],
   heavyAttack: ["K", "Right click"],
-  dash: ["L", "Shift"],
-  jump: ["Space"]
+  run: ["Space", "L", "Shift"]
 } as const;
 
 export function clampToArena(position: Point): Point {

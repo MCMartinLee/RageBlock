@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  PROTOTYPE_SCENE_KEY,
-  PROTOTYPE_SUBTITLE,
-  PROTOTYPE_TITLE
+  GAME_SCENE_KEY,
+  GAME_SUBTITLE,
+  GAME_TITLE
 } from "./prototypeDefinition";
 
 describe("RageBlock browser scaffold", () => {
-  it("names the prototype screen the app boots into", () => {
-    expect(PROTOTYPE_TITLE).toBe("RageBlock");
-    expect(PROTOTYPE_SUBTITLE).toBe("Combat Feel Prototype");
-    expect(PROTOTYPE_SCENE_KEY).toBe("combat-feel-prototype");
+  it("defines the finished campaign scene", () => {
+    expect(GAME_TITLE).toBe("RageBlock");
+    expect(GAME_SUBTITLE).toBe("Six blocks. One stolen Rage Remote.");
+    expect(GAME_SCENE_KEY).toBe("rageblock-campaign");
   });
 });

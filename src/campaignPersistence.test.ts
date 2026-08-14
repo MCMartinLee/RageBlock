@@ -21,4 +21,12 @@ describe("campaign persistence", () => {
     storage.setItem("rageblock-campaign-v1", "not-json");
     expect(loadCampaign(storage).chapterIndex).toBe(0);
   });
+
+  it("applies a newly selected mode to saved progress", () => {
+    const storage = memoryStorage();
+    saveCampaign(storage, completeChapter(createCampaignState("crash")));
+    saveSelectedMode(storage, "junkstorm");
+    expect(loadCampaign(storage).mode).toBe("junkstorm");
+    expect(loadCampaign(storage).modifiers).toContain("prop-launch");
+  });
 });

@@ -17,7 +17,7 @@ export function getChapterWaveBlueprint(chapterIndex: number): ChapterWaveEntry[
 
   return variants.map((variant, index) => ({
     position: { ...POSITIONS[index] },
-    delayMs: index * 160,
+    delayMs: index * 780,
     canCharge: variant === "charger" || variant === "boss",
     variant
   }));

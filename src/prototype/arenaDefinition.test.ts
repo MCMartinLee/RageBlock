@@ -21,10 +21,10 @@ describe("schoolyard corner movement sandbox", () => {
     });
   });
 
-  it("reserves the upcoming combat controls", () => {
+  it("defines the campaign combat controls", () => {
     expect(RESERVED_CONTROLS.lightAttack).toContain("J");
     expect(RESERVED_CONTROLS.heavyAttack).toContain("K");
-    expect(RESERVED_CONTROLS.dash).toContain("Shift");
-    expect(RESERVED_CONTROLS.jump).toContain("Space");
+    expect(RESERVED_CONTROLS.run).toContain("Shift");
+    expect(RESERVED_CONTROLS.run).toContain("Space");
   });
 });

@@ -1,3 +1,3 @@
-export const PROTOTYPE_TITLE = "RageBlock";
-export const PROTOTYPE_SCENE_KEY = "combat-feel-prototype";
-export const PROTOTYPE_SUBTITLE = "Combat Feel Prototype";
+export const GAME_TITLE = "RageBlock";
+export const GAME_SCENE_KEY = "rageblock-campaign";
+export const GAME_SUBTITLE = "Six blocks. One stolen Rage Remote.";

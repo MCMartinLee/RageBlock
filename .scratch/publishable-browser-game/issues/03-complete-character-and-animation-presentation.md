@@ -15,4 +15,4 @@
 
 ## Answer
 
-The title now uses original generated RageBlock key art, the playable protagonist and roster use an original teal/yellow/coral prepared rig language, all actors receive continuous state-driven motion, props and hazards animate, impacts retain pause/sparks/squash/camera feedback, and the Hall Monitor lane-lock phase visibly changes the playable arena.
+The title uses original RageBlock key art; the playable hero, four enemy archetypes, Block Captain, and interactive props use prepared frame atlases; all six chapters use authored environment art. Phaser supplies state-driven frame animation, movement, facing, spawn and reaction motion, prop physics, moving hazards, impact pause, sparks, squash, camera response, and the final lane-lock arena rule.

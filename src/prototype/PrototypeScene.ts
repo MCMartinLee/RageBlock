@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import {
-  PROTOTYPE_SCENE_KEY,
-  PROTOTYPE_SUBTITLE,
-  PROTOTYPE_TITLE
+  GAME_SCENE_KEY,
+  GAME_SUBTITLE,
+  GAME_TITLE
 } from "./prototypeDefinition";
 import {
   applyAttackToBullyWeirdo,
@@ -21,7 +21,6 @@ import {
   ARENA_BOUNDS,
   clampToArena,
   PLAYER_SPAWN,
-  RESERVED_CONTROLS,
   type Point
 } from "./arenaDefinition";
 import { getAttackPresentation, type FacingDirection } from "./attackPresentation";
@@ -31,8 +30,7 @@ import { applyAttackToProp, createPropState, type PropKind, type PropState } fro
 import {
   createBullyPressureState,
   updateBullyPressure,
-  type BullyPressureState,
-  type BullyMood
+  type BullyPressureState
 } from "./bullyPressure";
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 import { getCampaignChapter } from "../campaignDefinition";
@@ -40,7 +38,7 @@ import { completeChapter, completeSideRoom, createCampaignState, getCampaignRank
 import { loadCampaign, saveCampaign } from "../campaignPersistence";
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 import { getBossRule, getBossRuleLabel } from "./bossRules";
-import { isGamepadActionPressed } from "./inputActions";
+import { isNormalizedActionHeld, isNormalizedActionPressed, type NormalizedAction } from "./inputActions";
 import { getChapterWaveBlueprint } from "./chapterWaves";
 import { isChainReactionImpact } from "./chainReaction";
 
@@ -51,6 +49,9 @@ const PLAYER_DAMAGE_COOLDOWN_MS = 1050;
 
 type BullyActor = {
   body: Phaser.GameObjects.Container;
+  sprite: Phaser.GameObjects.Sprite;
+  spawnAt: number;
+  active: boolean;
   position: Point;
   knockbackVelocity: Point;
   pressure: BullyPressureState;
@@ -63,17 +64,19 @@ type BullyActor = {
 
 type ToyboxProp = {
   body: Phaser.GameObjects.Container;
+  sprite: Phaser.GameObjects.Sprite;
   position: Point;
   velocity: Point;
   state: PropState;
   nextChainAt: number;
 };
 
-export class PrototypeScene extends Phaser.Scene {
+export class CampaignScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
-  private actionKeys?: Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart" | "pause", Phaser.Input.Keyboard.Key>;
+  private actionKeys?: Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart" | "pause" | "title", Phaser.Input.Keyboard.Key>;
   private player?: Phaser.GameObjects.Container;
+  private playerSprite?: Phaser.GameObjects.Sprite;
   private playerPosition: Point = { ...PLAYER_SPAWN };
   private facing: FacingDirection = "right";
   private comboStep = 0;
@@ -88,6 +91,7 @@ export class PrototypeScene extends Phaser.Scene {
   private defeatLabel?: Phaser.GameObjects.Text;
   private stateLabel?: Phaser.GameObjects.Text;
   private playerAnimationState: PlayerAnimationState = "idle";
+  private hurtUntil = 0;
   private damageTaken = 0;
   private hitsLanded = 0;
   private runStartedAt = 0;
@@ -108,10 +112,11 @@ export class PrototypeScene extends Phaser.Scene {
   private previousGamepadButtons: boolean[] = [];
   private chapterWorldLayer?: Phaser.GameObjects.Container;
   private bossLaneGuide?: Phaser.GameObjects.Rectangle;
+  private hazardActor?: Phaser.GameObjects.Container;
   private exitOpen = false;
 
   constructor() {
-    super(PROTOTYPE_SCENE_KEY);
+    super(GAME_SCENE_KEY);
   }
 
   init(): void {
@@ -129,7 +134,7 @@ export class PrototypeScene extends Phaser.Scene {
 
     this.createSchoolyardCorner(width, height);
     this.createExitMarkers();
-    this.player = this.createPlayerSilhouette(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+    this.player = this.createPlayerCharacter(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
     this.spawnChapterWave();
     this.toyboxProps = [
       this.createToyboxProp("cone", { x: 430, y: 452 }),
@@ -152,8 +157,9 @@ export class PrototypeScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.L,
       Phaser.Input.Keyboard.KeyCodes.J,
       Phaser.Input.Keyboard.KeyCodes.K,
-      Phaser.Input.Keyboard.KeyCodes.R
-      , Phaser.Input.Keyboard.KeyCodes.P
+      Phaser.Input.Keyboard.KeyCodes.R,
+      Phaser.Input.Keyboard.KeyCodes.P,
+      Phaser.Input.Keyboard.KeyCodes.T
     ]);
     this.wasd = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -167,9 +173,10 @@ export class PrototypeScene extends Phaser.Scene {
       run: Phaser.Input.Keyboard.KeyCodes.SPACE,
       runAlt: Phaser.Input.Keyboard.KeyCodes.SHIFT,
       runAlt2: Phaser.Input.Keyboard.KeyCodes.L,
-      restart: Phaser.Input.Keyboard.KeyCodes.R
-      , pause: Phaser.Input.Keyboard.KeyCodes.P
-    }) as Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart" | "pause", Phaser.Input.Keyboard.Key>;
+      restart: Phaser.Input.Keyboard.KeyCodes.R,
+      pause: Phaser.Input.Keyboard.KeyCodes.P,
+      title: Phaser.Input.Keyboard.KeyCodes.T
+    }) as Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart" | "pause" | "title", Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
@@ -180,78 +187,32 @@ export class PrototypeScene extends Phaser.Scene {
       this.requestAttack("light", this.time.now);
     });
 
-    this.add
-      .text(24, 18, PROTOTYPE_TITLE, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "30px",
-        color: "#f5f0e8"
-      });
-    this.add.rectangle(width - 150, 108, 270, 166, 0x16171d, 0.72).setStrokeStyle(2, 0xf0c15c, 0.5).setOrigin(0.5);
+    const hudBand = this.add.rectangle(width / 2, 60, width, 120, 0x16171d, 0.86).setStrokeStyle(0).setOrigin(0.5);
+    const gameTitle = this.add.text(24, 12, GAME_TITLE, {
+      fontFamily: "Arial Black, Arial",
+      fontSize: "25px",
+      color: "#f5f0e8"
+    });
+    const subtitle = this.add.text(24, 44, GAME_SUBTITLE, {
+      fontFamily: "Arial",
+      fontSize: "14px",
+      color: "#f0c15c"
+    });
 
-    this.add
-      .text(24, 54, PROTOTYPE_SUBTITLE, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#f0c15c"
-      });
-
-    this.add
-      .text(
-        24,
-        height - 70,
-        [
-          "Move: WASD / Arrow Keys",
-          `${RESERVED_CONTROLS.lightAttack.join(" / ")} light, ${RESERVED_CONTROLS.heavyAttack.join(" / ")} heavy, Space / ${RESERVED_CONTROLS.dash.join(" / ")} run, P pause, R restart`
-        ],
-        {
-          fontFamily: "Arial, sans-serif",
-          fontSize: "15px",
-          color: "#d8d5c9"
-        }
-      );
-
-    this.attackLabel = this.add
-      .text(width - 24, 24, "Ready", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#f5f0e8"
-      })
-      .setOrigin(1, 0);
-    this.healthLabel = this.add
-      .text(width - 24, 54, "", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#8de0ff"
-      })
-      .setOrigin(1, 0);
-    this.rageLabel = this.add
-      .text(width - 24, 84, "", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#f0c15c"
-      })
-      .setOrigin(1, 0);
-    this.defeatLabel = this.add
-      .text(width - 24, 114, "", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#f5f0e8"
-      })
-      .setOrigin(1, 0);
-    this.scoreLabel = this.add.text(width - 24, 204, "Score 0", { fontFamily: "Arial Black, Arial", fontSize: "18px", color: "#f5f0e8" }).setOrigin(1, 0);
-    this.modeLabel = this.add.text(width - 24, 234, "Remote CRASH", { fontFamily: "Arial Black, Arial", fontSize: "16px", color: "#bca7ff" }).setOrigin(1, 0);
-    this.chapterLabel = this.add.text(width - 24, 174, "", { fontFamily: "Arial, sans-serif", fontSize: "18px", color: "#f0c15c" }).setOrigin(1, 0);
-    this.stateLabel = this.add
-      .text(width - 24, 144, "State idle", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#bca7ff"
-      })
-      .setOrigin(1, 0);
+    this.chapterLabel = this.add.text(24, 76, "", { fontFamily: "Arial", fontSize: "14px", color: "#d8d5c9" });
+    this.scoreLabel = this.add.text(700, 12, "Score 0", { fontFamily: "Arial Black, Arial", fontSize: "15px", color: "#f5f0e8" }).setOrigin(1, 0);
+    this.modeLabel = this.add.text(700, 42, "Remote CRASH", { fontFamily: "Arial Black, Arial", fontSize: "14px", color: "#bca7ff" }).setOrigin(1, 0);
+    this.stateLabel = this.add.text(700, 72, "Combo ready", { fontFamily: "Arial Black, Arial", fontSize: "14px", color: "#bca7ff" }).setOrigin(1, 0);
+    this.attackLabel = this.add.text(width - 24, 12, "Ready", { fontFamily: "Arial Black, Arial", fontSize: "15px", color: "#f5f0e8" }).setOrigin(1, 0);
+    this.healthLabel = this.add.text(width - 24, 38, "", { fontFamily: "Arial", fontSize: "16px", color: "#8de0ff" }).setOrigin(1, 0);
+    this.rageLabel = this.add.text(width - 24, 64, "", { fontFamily: "Arial", fontSize: "16px", color: "#f0c15c" }).setOrigin(1, 0);
+    this.defeatLabel = this.add.text(width - 24, 90, "", { fontFamily: "Arial", fontSize: "16px", color: "#f5f0e8" }).setOrigin(1, 0);
+    this.add.container(0, 0, [hudBand, gameTitle, subtitle, this.chapterLabel, this.scoreLabel, this.modeLabel, this.stateLabel, this.attackLabel, this.healthLabel, this.rageLabel, this.defeatLabel]).setDepth(4000);
     this.updateHealthLabel();
     this.updateRunLabels();
     this.updateChapterLabel();
     this.updatePresentationLabels();
+    this.showChapterStamp();
     this.ambientTimer = this.time.addEvent({ delay: 2600, loop: true, callback: () => this.playTone(72, 0.18) });
     this.publishDebugState();
   }
@@ -261,7 +222,29 @@ export class PrototypeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.restart)) {
+    const pad = this.input.gamepad?.getPad(0);
+    const padButtons = pad ? Array.from({ length: 10 }, (_, index) => Boolean(pad.buttons[index]?.pressed)) : [];
+    const keyboardPressed: Partial<Record<NormalizedAction, boolean>> = this.actionKeys ? {
+      light: Phaser.Input.Keyboard.JustDown(this.actionKeys.light),
+      heavy: Phaser.Input.Keyboard.JustDown(this.actionKeys.heavy),
+      restart: Phaser.Input.Keyboard.JustDown(this.actionKeys.restart),
+      pause: Phaser.Input.Keyboard.JustDown(this.actionKeys.pause),
+      title: Phaser.Input.Keyboard.JustDown(this.actionKeys.title)
+    } : {};
+    const actionPressed = (action: NormalizedAction) => isNormalizedActionPressed(
+      keyboardPressed,
+      padButtons,
+      this.previousGamepadButtons,
+      action
+    );
+
+    if (actionPressed("title")) {
+      saveCampaign(window.localStorage, this.campaignState);
+      this.scene.start("rageblock-title");
+      return;
+    }
+
+    if (actionPressed("restart")) {
       this.time.timeScale = 1;
       this.tweens.timeScale = 1;
       this.input.keyboard?.resetKeys();
@@ -273,10 +256,7 @@ export class PrototypeScene extends Phaser.Scene {
       return;
     }
 
-    const pad = this.input.gamepad?.getPad(0);
-    const padButtons = pad ? Array.from({ length: 10 }, (_, index) => Boolean(pad.buttons[index]?.pressed)) : [];
-    const padPressed = (action: "light" | "heavy" | "pause") => isGamepadActionPressed(padButtons, action) && !isGamepadActionPressed(this.previousGamepadButtons, action);
-    if ((this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.pause)) || padPressed("pause")) {
+    if (actionPressed("pause")) {
       this.togglePause();
     }
 
@@ -287,11 +267,11 @@ export class PrototypeScene extends Phaser.Scene {
       return;
     }
 
-    if ((this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.light)) || padPressed("light")) {
+    if (actionPressed("light")) {
       this.requestAttack("light", time);
     }
 
-    if ((this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.heavy)) || padPressed("heavy")) {
+    if (actionPressed("heavy")) {
       this.requestAttack("heavy", time);
     }
 
@@ -315,14 +295,16 @@ export class PrototypeScene extends Phaser.Scene {
     this.bossLaneGuide?.setVisible(bossRule === "lane-lock").setAlpha(0.22 + Math.sin(time * 0.012) * 0.08);
 
     this.playerPosition = nextPosition;
-    if (!this.activeAttack) this.playerAnimationState = getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running);
+    if (!this.activeAttack && time >= this.hurtUntil) this.playerAnimationState = getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running);
     const bob = this.playerAnimationState === "run" ? Math.sin(time * 0.025) * 5 : this.playerAnimationState === "move" ? Math.sin(time * 0.016) * 3 : Math.sin(time * 0.004) * 1.5;
     this.player.setPosition(nextPosition.x, nextPosition.y + bob);
+    this.playerSprite?.setFrame(this.getPlayerSpriteFrame(time));
     this.player.setScale(this.facing === "right" ? 1 : -1, 1);
     this.player.setRotation(this.activeAttack ? (this.facing === "right" ? -0.09 : 0.09) : Math.sin(time * 0.006) * 0.012);
     this.player.setDepth(Math.round(nextPosition.y));
+    this.updateHazardCollision(time);
     this.attackLabel?.setColor(running ? "#8de0ff" : "#f5f0e8");
-    this.stateLabel?.setText(`State ${this.playerAnimationState}`);
+    this.stateLabel?.setText(`Combo ${this.comboStep + 1}/3 | ${this.playerAnimationState}`);
     if (nextPosition.x <= ARENA_BOUNDS.left + 36 && this.campaignState.routeNode === 0) {
       const chapter = getCampaignChapter(this.campaignChapter);
       this.campaignState = completeSideRoom(this.campaignState, `${chapter.id}-side-room`);
@@ -339,7 +321,7 @@ export class PrototypeScene extends Phaser.Scene {
       else {
         this.campaignState = completeChapter(this.campaignState);
         saveCampaign(window.localStorage, this.campaignState);
-        this.endRun("Block Cleared");
+        this.endRun("Remote Recovered");
       }
     }
 
@@ -363,24 +345,23 @@ export class PrototypeScene extends Phaser.Scene {
     const chapter = getCampaignChapter(this.campaignChapter);
     const palette = chapter.palette;
     const world = this.add.container(0, 0).setDepth(-1000);
+    const backdrop = this.add.image(width / 2, height / 2, `rageblock-bg-${chapter.id}`).setDisplaySize(width, height);
     world.add([
-      this.add.rectangle(width / 2, height / 2, width, height, palette.sky),
-      this.add.rectangle(width / 2, 398, width, 284, palette.ground),
-      this.add.rectangle(width / 2, 152, width, 190, palette.structure),
-      this.add.rectangle(width / 2, ARENA_BOUNDS.top - 18, width, 28, palette.accent),
-      this.add.text(38, 94, chapter.setting.toUpperCase(), { fontFamily: "Arial Black, Arial", fontSize: "26px", color: "#f5f0e8" }),
-      this.add.text(38, 126, `${chapter.route[0].label}  >  ${chapter.route[2].label}`, { fontFamily: "Arial", fontSize: "16px", color: "#f5f0e8" }),
-      this.add.rectangle((ARENA_BOUNDS.left + ARENA_BOUNDS.right) / 2, (ARENA_BOUNDS.top + ARENA_BOUNDS.bottom) / 2, ARENA_BOUNDS.right - ARENA_BOUNDS.left, ARENA_BOUNDS.bottom - ARENA_BOUNDS.top, 0x000000, 0).setStrokeStyle(3, palette.accent, 0.9)
+      backdrop,
+      this.add.rectangle(width / 2, height / 2, width, height, palette.sky, 0.08),
+      this.add.rectangle(width / 2, 390, width, 300, palette.ground, 0.1),
+      this.add.rectangle(width / 2, 122, width, 5, palette.accent, 0.9),
+      this.add.text(24, 128, chapter.setting.toUpperCase(), { fontFamily: "Arial Black, Arial", fontSize: "20px", color: "#f5f0e8", stroke: "#17242b", strokeThickness: 4 }),
+      this.add.text(24, 153, `${chapter.route[0].label}  >  ${chapter.route[2].label}`, { fontFamily: "Arial", fontSize: "14px", color: "#f5f0e8", stroke: "#17242b", strokeThickness: 3 })
     ]);
-    for (let x = 70; x < width; x += 120) {
-      const marker = this.add.rectangle(x, 218, 74, 9, palette.accent, 0.65).setRotation((x % 3 - 1) * 0.04);
-      world.add(marker);
-    }
-    const hazard = this.add.rectangle(180, 288, 92, 18, palette.accent, 0.75).setStrokeStyle(2, 0xf5f0e8, 0.65);
-    const hazardLabel = this.add.text(0, -24, chapter.hazards[0].replaceAll("-", " ").toUpperCase(), { fontFamily: "Arial Black, Arial", fontSize: "11px", color: "#f5f0e8" }).setOrigin(0.5);
-    const hazardGroup = this.add.container(180, 288, [hazard, hazardLabel]);
+    const hazard = this.add.rectangle(0, 0, 30, 30, palette.accent, 0.86).setRotation(Math.PI / 4).setStrokeStyle(3, 0xf5f0e8, 0.8);
+    const hazardCore = this.add.circle(0, 0, 7, 0x16171d, 0.9);
+    const hazardLabel = this.add.text(0, -30, chapter.hazards[0].replaceAll("-", " ").toUpperCase(), { fontFamily: "Arial Black, Arial", fontSize: "10px", color: "#f5f0e8", stroke: "#17242b", strokeThickness: 3 }).setOrigin(0.5);
+    const hazardGroup = this.add.container(180, 260, [hazard, hazardCore, hazardLabel]);
     world.add(hazardGroup);
+    this.hazardActor = hazardGroup;
     this.tweens.add({ targets: hazardGroup, x: 780, duration: 3200 - this.campaignChapter * 180, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    this.tweens.add({ targets: hazard, angle: 360, duration: 900, repeat: -1, ease: "Linear" });
     this.chapterWorldLayer = world;
   }
 
@@ -401,27 +382,29 @@ export class PrototypeScene extends Phaser.Scene {
     side.setDepth(20);
   }
 
-  private createPlayerSilhouette(x: number, y: number): Phaser.GameObjects.Container {
-    const shadow = this.add.ellipse(0, 31, 66, 17, 0x000000, 0.3);
-    const backArm = this.add.rectangle(-24, -18, 17, 50, 0x087f87).setRotation(0.24).setStrokeStyle(3, 0x17242b);
-    const legs = this.add.rectangle(0, 13, 38, 38, 0x242932).setStrokeStyle(3, 0x17242b);
-    const leftShoe = this.add.ellipse(-15, 32, 29, 14, 0xffd23f).setStrokeStyle(3, 0x17242b);
-    const rightShoe = this.add.ellipse(16, 32, 29, 14, 0xffd23f).setStrokeStyle(3, 0x17242b);
-    const hoodie = this.add.rectangle(0, -20, 58, 64, 0x0799a3).setStrokeStyle(4, 0x17242b);
-    const shirt = this.add.rectangle(0, -16, 20, 49, 0xf5f0e8).setStrokeStyle(2, 0x17242b);
-    const hood = this.add.ellipse(0, -45, 50, 25, 0x087f87).setStrokeStyle(3, 0x17242b);
-    const frontArm = this.add.rectangle(25, -17, 18, 50, 0x0799a3).setRotation(-0.2).setStrokeStyle(3, 0x17242b);
-    const cuff = this.add.rectangle(31, 5, 18, 12, 0xffd23f).setRotation(-0.2).setStrokeStyle(2, 0x17242b);
-    const head = this.add.circle(0, -67, 25, 0xf0b36f).setStrokeStyle(4, 0x17242b);
-    const hair = this.add.ellipse(0, -82, 48, 25, 0x2d2023).setRotation(-0.08).setStrokeStyle(3, 0x17242b);
-    const hairTuft = this.add.ellipse(14, -94, 23, 9, 0x2d2023).setRotation(-0.5);
-    const leftEye = this.add.rectangle(-9, -68, 12, 6, 0xffd23f).setRotation(-0.22).setStrokeStyle(2, 0x17242b);
-    const rightEye = this.add.rectangle(10, -68, 12, 6, 0xffd23f).setRotation(0.22).setStrokeStyle(2, 0x17242b);
-    const grin = this.add.arc(3, -56, 10, 15, 165, false, 0x17242b);
-    const remote = this.add.rectangle(-28, 1, 17, 25, 0xff6b35).setRotation(0.12).setStrokeStyle(3, 0x17242b);
-    const remoteLight = this.add.circle(-28, -4, 3, 0x36d1dc);
+  private createPlayerCharacter(x: number, y: number): Phaser.GameObjects.Container {
+    const shadow = this.add.ellipse(0, 8, 70, 18, 0x000000, 0.3);
+    this.playerSprite = this.add.sprite(0, -54, "rageblock-hero", 0).setDisplaySize(132, 132);
+    return this.add.container(x, y, [shadow, this.playerSprite]);
+  }
 
-    return this.add.container(x, y, [shadow, backArm, legs, leftShoe, rightShoe, hoodie, shirt, hood, frontArm, cuff, head, hair, hairTuft, leftEye, rightEye, grin, remote, remoteLight]);
+  private getPlayerSpriteFrame(time: number): number {
+    if (this.playerAnimationState === "run" || this.playerAnimationState === "move") {
+      return Math.floor(time / (this.playerAnimationState === "run" ? 90 : 140)) % 2 === 0 ? 1 : 2;
+    }
+    if (this.playerAnimationState === "light") return 3;
+    if (this.playerAnimationState === "heavy") return Math.floor(time / 110) % 2 === 0 ? 4 : 5;
+    if (this.playerAnimationState === "hurt" || this.playerAnimationState === "defeated") return 6;
+    if (this.playerAnimationState === "victory") return 7;
+    return 0;
+  }
+
+  private getEnemySpriteFrame(variant: BullyActor["variant"]): number {
+    return { bully: 0, charger: 1, thrower: 2, heavy: 3 }[variant];
+  }
+
+  private getEnemyHealthOffset(variant: BullyActor["variant"], isBoss: boolean): number {
+    return isBoss ? 154 : variant === "heavy" ? 124 : 105;
   }
 
   private createBullyWeirdo(
@@ -432,48 +415,38 @@ export class PrototypeScene extends Phaser.Scene {
     isBoss = false
   ): BullyActor {
     const body = this.add.container(position.x, position.y);
-    const shadow = this.add.ellipse(0, 24, 54, 14, 0x000000, 0.26);
-    const legs = this.add.rectangle(0, 15, 28, 36, 0x243039);
-    const shirtColors = { bully: 0x2aa876, charger: 0xd1495b, thrower: 0x2f80c0, heavy: 0x7b4f2a };
-    const shirt = this.add.rectangle(0, -17, isBoss ? 78 : variant === "heavy" ? 60 : 50, isBoss ? 78 : variant === "heavy" ? 64 : 54, isBoss ? 0x9b2c70 : shirtColors[variant]);
-    const head = this.add.circle(0, -54, 22, 0xd99a67);
-    const brow = this.add.rectangle(0, -62, 32, 6, 0x22181c).setRotation(canCharge ? 0.16 : -0.16);
-    const grin = this.add.rectangle(0, -45, 22, 4, 0x22181c);
-    const accessories: Phaser.GameObjects.GameObject[] = [];
-    if (variant === "charger") {
-      accessories.push(this.add.arc(0, -64, 26, 180, 360, false, 0xff6b35).setStrokeStyle(3, 0x17242b));
-      accessories.push(this.add.rectangle(-25, -8, 15, 24, 0x242932).setRotation(0.3));
-    } else if (variant === "thrower") {
-      accessories.push(this.add.circle(27, -12, 11, 0x9be33b).setStrokeStyle(3, 0x17242b));
-      accessories.push(this.add.circle(-24, 10, 8, 0x36d1dc).setStrokeStyle(2, 0x17242b));
-    } else if (variant === "heavy") {
-      accessories.push(this.add.rectangle(-28, -18, 18, 35, 0x242932).setStrokeStyle(3, 0x17242b));
-      accessories.push(this.add.rectangle(28, -18, 18, 35, 0x242932).setStrokeStyle(3, 0x17242b));
-    }
-    if (isBoss) {
-      accessories.push(this.add.rectangle(3, -18, 16, 70, 0xf5f0e8).setRotation(-0.3).setStrokeStyle(2, 0x17242b));
-      accessories.push(this.add.circle(-24, -35, 8, 0xffd23f).setStrokeStyle(2, 0x17242b));
-      accessories.push(this.add.rectangle(34, -8, 18, 42, 0xd8d5c9).setStrokeStyle(3, 0x17242b));
-    }
+    const shadow = this.add.ellipse(0, 8, isBoss ? 108 : 66, isBoss ? 24 : 16, 0x000000, 0.26);
+    const frame = this.getEnemySpriteFrame(variant);
+    const sprite = this.add.sprite(0, isBoss ? -76 : variant === "heavy" ? -65 : -56, "rageblock-enemies", frame);
+    sprite.setDisplaySize(isBoss ? 172 : variant === "heavy" ? 138 : 116, isBoss ? 194 : variant === "heavy" ? 155 : 131);
     const moodLabel = this.add
-      .text(0, isBoss ? -122 : -94, isBoss ? "BOSS: HALL MONITOR" : variant, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
-        color: "#f5f0e8"
+      .text(0, isBoss ? -162 : -108, isBoss ? "BLOCK CAPTAIN" : "", {
+        fontFamily: "Arial Black, Arial",
+        fontSize: isBoss ? "13px" : "11px",
+        color: isBoss ? "#ffd23f" : "#f5f0e8",
+        stroke: "#17242b",
+        strokeThickness: 3
       })
       .setOrigin(0.5);
 
-    body.add([shadow, legs, shirt, head, brow, grin, ...accessories, moodLabel]);
+    body.add([shadow, sprite, moodLabel]);
     body.setDepth(Math.round(position.y));
+    body.setVisible(delayMs === 0);
+
+    const healthBar = this.add.rectangle(position.x, position.y - this.getEnemyHealthOffset(variant, isBoss), isBoss ? 118 : 56, 7, isBoss ? 0xff5f4d : variant === "heavy" ? 0xff9d4d : 0x8de0ff);
+    healthBar.setVisible(delayMs === 0);
 
     return {
       body,
+      sprite,
+      spawnAt: this.time.now + delayMs,
+      active: delayMs === 0,
       position,
       knockbackVelocity: { x: 0, y: 0 },
       pressure: createBullyPressureState(this.time.now + delayMs, canCharge),
       combat: createBullyWeirdoState({ health: isBoss ? ENEMY_ARCHETYPES.boss.health : ENEMY_ARCHETYPES[variant].health }),
       moodLabel,
-      healthBar: this.add.rectangle(position.x, position.y - (isBoss ? 112 : 86), isBoss ? 96 : 48, 7, isBoss ? 0xff5f4d : variant === "heavy" ? 0xff9d4d : 0x8de0ff),
+      healthBar,
       variant,
       isBoss
     };
@@ -481,36 +454,26 @@ export class PrototypeScene extends Phaser.Scene {
 
   private createToyboxProp(kind: PropKind, position: Point): ToyboxProp {
     const body = this.add.container(position.x, position.y);
-
-    if (kind === "cone") {
-      body.add([
-        this.add.triangle(0, -18, -18, 22, 0, -24, 18, 22, 0xf07d32),
-        this.add.rectangle(0, 20, 42, 8, 0xf5f0e8)
-      ]);
-    } else if (kind === "trash-can") {
-      body.add([
-        this.add.rectangle(0, -8, 34, 48, 0x6f7d84),
-        this.add.rectangle(0, -35, 44, 10, 0x9aa7ad),
-        this.add.rectangle(-10, -8, 4, 36, 0x465156),
-        this.add.rectangle(10, -8, 4, 36, 0x465156)
-      ]);
-    } else {
-      body.add([
-        this.add.circle(0, -12, 18, 0xf0c15c),
-        this.add.circle(-7, -18, 4, 0x202129),
-        this.add.circle(7, -6, 4, 0x202129)
-      ]);
-    }
+    const shadow = this.add.ellipse(0, 6, kind === "ball" ? 44 : 58, 13, 0x000000, 0.25);
+    const sprite = this.add.sprite(0, kind === "ball" ? -22 : -32, "rageblock-props", this.getPropSpriteFrame(kind));
+    const size = kind === "ball" ? 64 : kind === "cone" ? 76 : 82;
+    sprite.setDisplaySize(size, size);
+    body.add([shadow, sprite]);
 
     body.setDepth(Math.round(position.y));
 
     return {
       body,
+      sprite,
       position,
       velocity: { x: 0, y: 0 },
       state: createPropState(kind)
       , nextChainAt: 0
     };
+  }
+
+  private getPropSpriteFrame(kind: PropKind): number {
+    return { cone: 0, "trash-can": 1, ball: 2 }[kind];
   }
 
   private getMovementInput(): Point {
@@ -540,10 +503,11 @@ export class PrototypeScene extends Phaser.Scene {
 
   private isRunning(): boolean {
     const pad = this.input.gamepad?.getPad(0);
-    return Boolean(
-      this.actionKeys?.run.isDown ||
-        this.actionKeys?.runAlt.isDown ||
-        this.actionKeys?.runAlt2.isDown || pad?.R2
+    const buttons = pad ? Array.from({ length: 10 }, (_, index) => Boolean(pad.buttons[index]?.pressed)) : [];
+    return isNormalizedActionHeld(
+      { run: Boolean(this.actionKeys?.run.isDown || this.actionKeys?.runAlt.isDown || this.actionKeys?.runAlt2.isDown) },
+      buttons,
+      "run"
     );
   }
 
@@ -558,16 +522,28 @@ export class PrototypeScene extends Phaser.Scene {
         player: { ...this.playerPosition },
         running: this.isRunning(),
         runEnded: this.runEnded,
+        paused: this.paused,
         chapter: this.campaignChapter,
         exitOpen: this.exitOpen,
         mode: this.campaignState.mode,
         score: this.campaignState.score,
-        completed: this.campaignState.completed
+        completed: this.campaignState.completed,
+        defeated: this.combatRun.defeatedBullyWeirdos,
+        enemies: this.bullyWeirdos
+          .filter((bully) => bully.active && !bully.combat.defeated)
+          .map((bully) => ({ ...bully.position, health: bully.combat.health }))
       }),
       clearWave: () => {
-        for (const bully of this.bullyWeirdos) bully.combat = { ...bully.combat, health: 0, defeated: true };
+        for (const bully of this.bullyWeirdos) {
+          bully.active = true;
+          bully.body.setVisible(true);
+          bully.combat = { ...bully.combat, health: 0, defeated: true };
+        }
         this.combatRun = { ...this.combatRun, defeatedBullyWeirdos: 8 };
         this.openExitIfCleared();
+      },
+      defeatPlayer: () => {
+        this.damagePlayer(this.playerState.health, this.time.now, "DEFEATED");
       }
     };
   }
@@ -578,6 +554,8 @@ export class PrototypeScene extends Phaser.Scene {
     this.comboStep = 0;
     this.playerState = createPlayerState();
     this.playerAnimationState = "idle";
+    this.hurtUntil = 0;
+    this.playerSprite = undefined;
     this.combatRun = createCombatRunState();
     this.attackingUntil = 0;
     this.bufferedAttack = undefined;
@@ -595,15 +573,17 @@ export class PrototypeScene extends Phaser.Scene {
     this.exitOpen = false;
     this.paused = false;
     this.pauseOverlay = undefined;
+    this.hazardActor = undefined;
   }
 
   private togglePause(): void {
     this.paused = !this.paused;
+    this.playTone(this.paused ? 180 : 280, 0.07);
     if (this.paused) {
       const { width, height } = this.scale;
       const panel = this.add.rectangle(0, 0, 360, 150, 0x16171d, 0.96).setStrokeStyle(3, 0xf0c15c);
       const title = this.add.text(0, -28, "PAUSED", { fontFamily: "Arial Black, Arial", fontSize: "32px", color: "#f5f0e8" }).setOrigin(0.5);
-      const hint = this.add.text(0, 28, "Press P to resume", { fontFamily: "Arial", fontSize: "18px", color: "#d8d5c9" }).setOrigin(0.5);
+      const hint = this.add.text(0, 28, "P / Menu resume   T / View title", { fontFamily: "Arial", fontSize: "18px", color: "#d8d5c9" }).setOrigin(0.5);
       this.pauseOverlay = this.add.container(width / 2, height / 2, [panel, title, hint]).setDepth(6000);
     } else {
       this.pauseOverlay?.destroy();
@@ -614,6 +594,37 @@ export class PrototypeScene extends Phaser.Scene {
   private updateChapterLabel(): void {
     const chapter = getCampaignChapter(this.campaignChapter);
     this.chapterLabel?.setText(`Chapter ${this.campaignChapter + 1}/6: ${chapter.title} | ${chapter.objective}`);
+  }
+
+  private showChapterStamp(): void {
+    const { width, height } = this.scale;
+    const chapter = getCampaignChapter(this.campaignChapter);
+    const band = this.add.rectangle(0, 0, width, 126, 0x16171d, 0.94).setStrokeStyle(3, chapter.palette.accent);
+    const number = this.add.text(0, -29, `CHAPTER ${this.campaignChapter + 1} / 6`, {
+      fontFamily: "Arial Black, Arial",
+      fontSize: "17px",
+      color: "#f0c15c"
+    }).setOrigin(0.5);
+    const title = this.add.text(0, 4, chapter.title.toUpperCase(), {
+      fontFamily: "Arial Black, Arial",
+      fontSize: "30px",
+      color: "#f5f0e8"
+    }).setOrigin(0.5);
+    const objective = this.add.text(0, 38, chapter.objective, {
+      fontFamily: "Arial",
+      fontSize: "16px",
+      color: "#d8d5c9"
+    }).setOrigin(0.5);
+    const stamp = this.add.container(width / 2, height / 2, [band, number, title, objective]).setDepth(4500);
+    this.tweens.add({
+      targets: stamp,
+      alpha: 0,
+      y: height / 2 - 18,
+      delay: 900,
+      duration: 320,
+      ease: "Quad.easeIn",
+      onComplete: () => stamp.destroy()
+    });
   }
 
   private performLightAttack(time: number): void {
@@ -655,27 +666,25 @@ export class PrototypeScene extends Phaser.Scene {
     this.activeAttack?.destroy();
     this.activeAttack = this.add.container(x, y);
 
-    const hitbox = this.add
-      .rectangle(0, 0, presentation.hitboxWidth, presentation.hitboxHeight, presentation.color, 0.28)
-      .setStrokeStyle(3, presentation.color, 0.95);
-    const arrow = this.add.triangle(
-      presentation.hitboxOffsetX > 0 ? presentation.hitboxWidth / 2 + 18 : -presentation.hitboxWidth / 2 - 18,
-      0,
-      presentation.hitboxOffsetX > 0 ? -12 : 12,
-      -16,
-      presentation.hitboxOffsetX > 0 ? -12 : 12,
-      16,
-      presentation.hitboxOffsetX > 0 ? 14 : -14,
-      0,
-      presentation.color,
-      0.8
-    );
-
-    this.activeAttack.add([hitbox, arrow]);
+    const trail = this.add
+      .ellipse(0, 0, presentation.hitboxWidth, effectiveAttack.kind === "heavy" ? 30 : 16, presentation.color, 0.72)
+      .setRotation(this.facing === "right" ? -0.18 : 0.18);
+    const core = this.add
+      .ellipse(this.facing === "right" ? presentation.hitboxWidth * 0.3 : -presentation.hitboxWidth * 0.3, 0, effectiveAttack.kind === "heavy" ? 28 : 18, effectiveAttack.kind === "heavy" ? 28 : 18, 0xf5f0e8, 0.9)
+      .setStrokeStyle(4, presentation.color, 0.95);
+    this.activeAttack.add([trail, core]);
+    this.tweens.add({
+      targets: this.activeAttack,
+      alpha: 0,
+      scaleX: 1.3,
+      scaleY: 0.65,
+      duration: presentation.durationMs,
+      ease: "Quad.easeOut"
+    });
     this.activeAttack.setDepth(Math.round(this.playerPosition.y) + 10);
     this.attackingUntil = time + presentation.durationMs;
-    this.attackLabel?.setText(`${presentation.label} | knockback ${effectiveAttack.knockback}`);
-    this.stateLabel?.setText(`State ${effectiveAttack.kind}`);
+    this.attackLabel?.setText(`${presentation.label}!`);
+    this.stateLabel?.setText(effectiveAttack.kind === "heavy" ? "RAGE LAUNCH" : `COMBO ${effectiveAttack.comboStep ?? 1}`);
     this.playerAnimationState = effectiveAttack.kind;
     this.applyAttackToBullyWeirdos(effectiveAttack, hitboxShape);
     this.applyAttackToToyboxProps({ ...effectiveAttack, knockback: Math.round(effectiveAttack.knockback * tuning.propMultiplier) }, hitboxShape);
@@ -701,9 +710,19 @@ export class PrototypeScene extends Phaser.Scene {
     const seconds = delta / 1000;
 
     for (const bully of this.bullyWeirdos) {
+      if (!bully.active) {
+        if (time < bully.spawnAt) continue;
+        bully.active = true;
+        bully.body.setVisible(true).setAlpha(0).setScale(0.65);
+        bully.healthBar.setVisible(true);
+        this.tweens.add({ targets: bully.body, alpha: 1, scale: 1, duration: 180, ease: "Back.easeOut" });
+        this.playTone(bully.isBoss ? 65 : 105, bully.isBoss ? 0.32 : 0.08);
+      }
       if (bully.combat.defeated) {
         bully.body.setAlpha(0.35);
-        bully.moodLabel.setText("defeated");
+        bully.sprite.setFrame(this.getEnemySpriteFrame(bully.variant) + 4).setRotation(-0.9);
+        bully.moodLabel.setVisible(false);
+        bully.healthBar.setVisible(false);
         continue;
       }
 
@@ -731,31 +750,52 @@ export class PrototypeScene extends Phaser.Scene {
 
       bully.body.setPosition(bully.position.x, bully.position.y);
       bully.body.setDepth(Math.round(bully.position.y));
-      bully.body.setScale(decision.velocity.x < 0 ? -1 : 1, 1);
-      bully.body.setRotation(Math.sin((time + bully.position.x * 3) * (bully.variant === "heavy" ? 0.003 : 0.006)) * (bully.variant === "charger" ? 0.055 : 0.025));
-      bully.moodLabel.setText(this.getMoodLabel(decision.mood));
-      bully.healthBar.setPosition(bully.position.x, bully.position.y - (bully.isBoss ? 112 : 86));
-      bully.healthBar.setDisplaySize((bully.isBoss ? 96 : 48) * (bully.combat.health / (bully.isBoss ? 60 : bully.variant === "heavy" ? 30 : 18)), bully.isBoss ? 7 : 5);
-      if (bully.isBoss) bully.moodLabel.setText(getBossRuleLabel(getBossRule(time - this.runStartedAt)));
+      bully.sprite.setFlipX(decision.velocity.x > 0);
+      bully.sprite.setFrame(this.getEnemySpriteFrame(bully.variant) + (decision.mood === "charging" || decision.mood === "shoving" ? 4 : 0));
+      bully.sprite.setRotation(Math.sin((time + bully.position.x * 3) * (bully.variant === "heavy" ? 0.003 : 0.006)) * (bully.variant === "charger" ? 0.055 : 0.025));
+      const showTelegraph = decision.mood === "charging" || decision.mood === "shoving";
+      bully.moodLabel.setVisible(bully.isBoss || showTelegraph);
+      bully.moodLabel.setText(bully.isBoss ? getBossRuleLabel(getBossRule(time - this.runStartedAt)) : decision.mood === "charging" ? "CHARGE!" : "SHOVE!");
+      const healthOffset = this.getEnemyHealthOffset(bully.variant, bully.isBoss);
+      const maxHealth = bully.isBoss ? ENEMY_ARCHETYPES.boss.health : ENEMY_ARCHETYPES[bully.variant].health;
+      bully.healthBar.setVisible(true).setPosition(bully.position.x, bully.position.y - healthOffset);
+      bully.healthBar.setDisplaySize((bully.isBoss ? 118 : 56) * (bully.combat.health / maxHealth), bully.isBoss ? 7 : 5);
+      bully.healthBar.setDepth(Math.round(bully.position.y) + 2);
 
       if (decision.damagesPlayer && time >= this.nextPlayerDamageAt) {
-        this.playerState = {
-          ...this.playerState,
-          health: Math.max(0, this.playerState.health - BULLY_DAMAGE)
-        };
-        this.damageTaken += BULLY_DAMAGE;
-        this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
-        this.playerAnimationState = "hurt";
-        this.stateLabel?.setText("State hurt");
-        this.updateHealthLabel();
-        this.flashTarget(this.player, 0x8de0ff, 120);
-        if (this.playerState.health <= 0) {
-          this.campaignState = recordPlayerDefeat(this.campaignState);
-          saveCampaign(window.localStorage, this.campaignState);
-          this.endRun("Knocked Out");
-        }
+        this.damagePlayer(BULLY_DAMAGE, time, "SHOVED!");
       }
     }
+  }
+
+  private updateHazardCollision(time: number): void {
+    if (!this.hazardActor || time < this.nextPlayerDamageAt) return;
+    if (Phaser.Math.Distance.Between(this.playerPosition.x, this.playerPosition.y, this.hazardActor.x, this.hazardActor.y) > 44) return;
+    this.damagePlayer(8, time, "HAZARD!");
+    this.playerPosition = clampToArena({ x: this.playerPosition.x - (this.hazardActor.x < this.playerPosition.x ? -48 : 48), y: this.playerPosition.y + 18 });
+  }
+
+  private damagePlayer(amount: number, time: number, callout: string): void {
+    if (this.runEnded) return;
+    this.playerState = { ...this.playerState, health: Math.max(0, this.playerState.health - amount) };
+    this.damageTaken += amount;
+    this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
+    this.playerAnimationState = "hurt";
+    this.hurtUntil = time + 260;
+    this.stateLabel?.setText(callout);
+    this.playTone(86, 0.11);
+    this.updateHealthLabel();
+    this.flashTarget(this.player, 0x8de0ff, 120);
+    if (this.playerState.health <= 0) this.knockOutPlayer();
+  }
+
+  private knockOutPlayer(): void {
+    if (this.runEnded) return;
+    this.playerState = { ...this.playerState, health: 0 };
+    this.campaignState = recordPlayerDefeat(this.campaignState);
+    saveCampaign(window.localStorage, this.campaignState);
+    this.updateHealthLabel();
+    this.endRun("Knocked Out");
   }
 
   private updateHealthLabel(): void {
@@ -764,7 +804,8 @@ export class PrototypeScene extends Phaser.Scene {
 
   private updateRunLabels(): void {
     this.rageLabel?.setText(`Rage ${this.combatRun.rage}/100`);
-    this.defeatLabel?.setText(`Defeated ${this.combatRun.defeatedBullyWeirdos}/8`);
+    const boss = this.bullyWeirdos.find((bully) => bully.isBoss && !bully.combat.defeated);
+    this.defeatLabel?.setText(boss ? `BLOCK CAPTAIN ${boss.combat.health}/60` : `Defeated ${this.combatRun.defeatedBullyWeirdos}/8`);
   }
 
   private updateToyboxProps(time: number, delta: number): void {
@@ -795,16 +836,18 @@ export class PrototypeScene extends Phaser.Scene {
       prop.body.setPosition(prop.position.x, prop.position.y);
       prop.body.setRotation(prop.body.rotation + prop.velocity.x * seconds * 0.01);
       prop.body.setDepth(Math.round(prop.position.y));
+      const actionFrame = prop.state.broken || (prop.state.kind === "ball" && Math.hypot(prop.velocity.x, prop.velocity.y) > 120);
+      prop.sprite.setFrame(this.getPropSpriteFrame(prop.state.kind) + (actionFrame ? 3 : 0));
 
       if (time >= prop.nextChainAt) {
-        const target = this.bullyWeirdos.find((bully) => !bully.combat.defeated && isChainReactionImpact(prop.position, prop.velocity, bully.position));
+        const target = this.bullyWeirdos.find((bully) => bully.active && !bully.combat.defeated && isChainReactionImpact(prop.position, prop.velocity, bully.position));
         if (target) {
           const chainAttack: AttackOutcome = { kind: "light", comboStep: null, damage: 4, knockback: 180, launch: false, empowered: false, rageGain: 12, nextComboStep: 0 };
           const result = applyAttackToBullyWeirdo(this.combatRun, target.combat, chainAttack);
           this.combatRun = result.run;
           target.combat = result.bully;
           target.knockbackVelocity = getKnockbackVelocity(chainAttack.knockback, prop.velocity.x < 0 ? "left" : "right", false);
-          target.moodLabel.setText("CHAIN HIT");
+          this.showEnemyCallout(target, "CHAIN!", "#ffd23f");
           prop.nextChainAt = time + 500;
           prop.velocity = { x: -prop.velocity.x * 0.35, y: -120 };
           this.spawnHitSparks(target.position, 5, 0xffd23f);
@@ -816,17 +859,29 @@ export class PrototypeScene extends Phaser.Scene {
     }
   }
 
-  private getMoodLabel(mood: BullyMood): string {
-    if (mood === "backing-off") {
-      return "back off";
-    }
-
-    return mood;
+  private showEnemyCallout(bully: BullyActor, label: string, color: string): void {
+    const callout = this.add.text(bully.position.x, bully.position.y - this.getEnemyHealthOffset(bully.variant, bully.isBoss) - 12, label, {
+      fontFamily: "Arial Black, Arial",
+      fontSize: bully.isBoss ? "18px" : "14px",
+      color,
+      stroke: "#17242b",
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(3200);
+    this.tweens.add({
+      targets: callout,
+      y: callout.y - 28,
+      alpha: 0,
+      scale: 1.2,
+      duration: 420,
+      ease: "Quad.easeOut",
+      onComplete: () => callout.destroy()
+    });
   }
 
   private applyAttackToBullyWeirdos(attack: AttackOutcome, hitboxShape: ReturnType<typeof createAttackHitbox>): void {
     for (const bully of this.bullyWeirdos) {
-      if (bully.combat.defeated || !isPointInsideHitbox(bully.position, hitboxShape)) {
+      const targetCenter = { x: bully.position.x, y: bully.position.y - (bully.isBoss ? 62 : 42) };
+      if (!bully.active || bully.combat.defeated || !isPointInsideHitbox(targetCenter, hitboxShape)) {
         continue;
       }
 
@@ -835,7 +890,7 @@ export class PrototypeScene extends Phaser.Scene {
       this.combatRun = result.run;
       bully.combat = result.bully;
       bully.knockbackVelocity = getKnockbackVelocity(attack.knockback, this.facing, attack.launch);
-      bully.moodLabel.setText(attack.launch ? "launched" : "hit");
+      this.showEnemyCallout(bully, attack.launch ? "LAUNCHED!" : "POW!", attack.kind === "heavy" ? "#ff6b35" : "#f5f0e8");
       bully.healthBar.setDisplaySize((bully.isBoss ? 96 : 48) * (bully.combat.health / (bully.isBoss ? 60 : bully.variant === "heavy" ? 30 : 18)), bully.isBoss ? 7 : 5);
       this.playHitFeedback(attack, bully);
 
@@ -857,9 +912,10 @@ export class PrototypeScene extends Phaser.Scene {
   }
 
   private openExitIfCleared(): void {
-    if (!isBlockCleared(this.combatRun)) return;
+    if (!isBlockCleared(this.combatRun) || this.exitOpen) return;
     this.exitOpen = true;
     this.attackLabel?.setText(this.campaignChapter < 5 ? "EXIT OPEN | Reach NEXT BLOCK" : "BOSS DOWN | Reach NEXT BLOCK");
+    this.playTone(this.campaignChapter < 5 ? 520 : 72, this.campaignChapter < 5 ? 0.2 : 0.45);
   }
 
   private advanceChapter(): void {
@@ -874,7 +930,14 @@ export class PrototypeScene extends Phaser.Scene {
     this.createSchoolyardCorner(this.scale.width, this.scale.height);
     this.combatRun = { ...this.combatRun, defeatedBullyWeirdos: 0 };
     this.updateChapterLabel();
+    this.updatePresentationLabels();
+    this.attackLabel?.setText("NEW BLOCK");
+    this.showChapterStamp();
+    this.playTone(440, 0.16);
     this.flashTarget(this.player, 0xf0c15c, 220);
+    this.time.delayedCall(1100, () => {
+      if (!this.exitOpen && !this.runEnded) this.attackLabel?.setText("Ready");
+    });
   }
 
   private spawnChapterWave(): void {
@@ -886,21 +949,23 @@ export class PrototypeScene extends Phaser.Scene {
       : undefined;
   }
 
-  private endRun(title: "Block Cleared" | "Knocked Out"): void {
+  private endRun(title: "Remote Recovered" | "Knocked Out"): void {
     if (this.runEnded) {
       return;
     }
 
     this.runEnded = true;
-    this.playerAnimationState = title === "Block Cleared" ? "victory" : "defeated";
-    this.stateLabel?.setText(`State ${this.playerAnimationState}`);
+    this.playTone(title === "Remote Recovered" ? 660 : 58, title === "Remote Recovered" ? 0.34 : 0.42);
+    this.playerAnimationState = title === "Remote Recovered" ? "victory" : "defeated";
+    this.playerSprite?.setFrame(title === "Remote Recovered" ? 7 : 6);
+    this.stateLabel?.setText(title === "Remote Recovered" ? "VICTORY" : "DEFEATED");
     const elapsedSeconds = Math.max(0, Math.round((this.time.now - this.runStartedAt) / 1000));
     const { width, height } = this.scale;
-    const panel = this.add.rectangle(0, 0, 420, 250, 0x16171d, 0.92).setStrokeStyle(3, 0xf0c15c);
-    const heading = this.add.text(0, -88, title, {
+    const panel = this.add.rectangle(0, 0, 500, 350, 0x16171d, 0.95).setStrokeStyle(4, 0xf0c15c);
+    const heading = this.add.text(0, -132, title, {
       fontFamily: "Arial, sans-serif",
       fontSize: "34px",
-      color: title === "Block Cleared" ? "#f0c15c" : "#ff5f4d"
+      color: title === "Remote Recovered" ? "#f0c15c" : "#ff5f4d"
     }).setOrigin(0.5);
     const stats = this.add.text(0, -24, [
       `Time ${elapsedSeconds}s`,
@@ -908,8 +973,10 @@ export class PrototypeScene extends Phaser.Scene {
       `Damage Taken ${this.damageTaken}`,
       `Score ${this.campaignState.score}`,
       `Rank ${getCampaignRank(this.campaignState.score)}`,
+      `Remote ${this.campaignState.mode.toUpperCase()}`,
+      title === "Remote Recovered" ? `Recovered ${this.campaignState.recoveredRewards.at(-1) ?? "Rage Remote"}` : `Checkpoint Chapter ${this.campaignChapter + 1}`,
       "",
-      "Press R to restart"
+      title === "Remote Recovered" ? "R Replay Campaign   T Title" : "R Retry Checkpoint   T Title"
     ], {
       fontFamily: "Arial, sans-serif",
       fontSize: "19px",
@@ -923,7 +990,7 @@ export class PrototypeScene extends Phaser.Scene {
 
   private applyAttackToToyboxProps(attack: AttackOutcome, hitboxShape: ReturnType<typeof createAttackHitbox>): void {
     for (const prop of this.toyboxProps) {
-      if (!isPointInsideHitbox(prop.position, hitboxShape)) {
+      if (!isPointInsideHitbox({ x: prop.position.x, y: prop.position.y - 20 }, hitboxShape)) {
         continue;
       }
 
@@ -933,7 +1000,8 @@ export class PrototypeScene extends Phaser.Scene {
       this.spawnHitSparks(prop.position, prop.state.kind === "ball" ? 4 : 3, 0xf0c15c);
 
       if (reaction.breaksNow) {
-        prop.body.setAlpha(0.45);
+        this.playTone(150, 0.18);
+        prop.sprite.setFrame(this.getPropSpriteFrame(prop.state.kind) + 3);
         this.squashTarget(prop.body, 1.35, 0.6, 120);
       } else {
         this.squashTarget(prop.body, 1.16, 0.82, 90);

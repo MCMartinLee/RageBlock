@@ -9,6 +9,7 @@ describe("scene hit detection rules", () => {
     const hitbox = createAttackHitbox({ x: 200, y: 300 }, presentation);
 
     expect(isPointInsideHitbox({ x: hitbox.center.x, y: hitbox.center.y }, hitbox)).toBe(true);
+    expect(isPointInsideHitbox({ x: hitbox.center.x, y: 300 - 42 }, hitbox)).toBe(true);
     expect(isPointInsideHitbox({ x: 50, y: hitbox.center.y }, hitbox)).toBe(false);
   });
 
