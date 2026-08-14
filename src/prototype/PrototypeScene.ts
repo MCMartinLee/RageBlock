@@ -51,6 +51,7 @@ type BullyActor = {
   moodLabel: Phaser.GameObjects.Text;
   healthBar: Phaser.GameObjects.Rectangle;
   variant: "bully" | "charger" | "thrower" | "heavy";
+  isBoss: boolean;
 };
 
 type ToyboxProp = {
@@ -351,18 +352,19 @@ export class PrototypeScene extends Phaser.Scene {
     position: Point,
     delayMs: number,
     canCharge: boolean,
-    variant: BullyActor["variant"] = canCharge ? "charger" : "bully"
+    variant: BullyActor["variant"] = canCharge ? "charger" : "bully",
+    isBoss = false
   ): BullyActor {
     const body = this.add.container(position.x, position.y);
     const shadow = this.add.ellipse(0, 24, 54, 14, 0x000000, 0.26);
     const legs = this.add.rectangle(0, 15, 28, 36, 0x243039);
     const shirtColors = { bully: 0x2aa876, charger: 0xd1495b, thrower: 0x2f80c0, heavy: 0x7b4f2a };
-    const shirt = this.add.rectangle(0, -17, variant === "heavy" ? 60 : 50, variant === "heavy" ? 64 : 54, shirtColors[variant]);
+    const shirt = this.add.rectangle(0, -17, isBoss ? 78 : variant === "heavy" ? 60 : 50, isBoss ? 78 : variant === "heavy" ? 64 : 54, isBoss ? 0x9b2c70 : shirtColors[variant]);
     const head = this.add.circle(0, -54, 22, 0xd99a67);
     const brow = this.add.rectangle(0, -62, 32, 6, 0x22181c).setRotation(canCharge ? 0.16 : -0.16);
     const grin = this.add.rectangle(0, -45, 22, 4, 0x22181c);
     const moodLabel = this.add
-      .text(0, -94, variant, {
+      .text(0, isBoss ? -122 : -94, isBoss ? "BOSS: HALL MONITOR" : variant, {
         fontFamily: "Arial, sans-serif",
         fontSize: "12px",
         color: "#f5f0e8"
@@ -377,10 +379,11 @@ export class PrototypeScene extends Phaser.Scene {
       position,
       knockbackVelocity: { x: 0, y: 0 },
       pressure: createBullyPressureState(this.time.now + delayMs, canCharge),
-      combat: createBullyWeirdoState({ health: variant === "heavy" ? 30 : 18 }),
+      combat: createBullyWeirdoState({ health: isBoss ? 60 : variant === "heavy" ? 30 : 18 }),
       moodLabel,
-      healthBar: this.add.rectangle(position.x, position.y - 86, 48, 5, variant === "heavy" ? 0xff9d4d : 0x8de0ff),
-      variant
+      healthBar: this.add.rectangle(position.x, position.y - (isBoss ? 112 : 86), isBoss ? 96 : 48, 7, isBoss ? 0xff5f4d : variant === "heavy" ? 0xff9d4d : 0x8de0ff),
+      variant,
+      isBoss
     };
   }
 
@@ -573,8 +576,9 @@ export class PrototypeScene extends Phaser.Scene {
       bully.body.setDepth(Math.round(bully.position.y));
       bully.body.setScale(decision.velocity.x < 0 ? -1 : 1, 1);
       bully.moodLabel.setText(this.getMoodLabel(decision.mood));
-      bully.healthBar.setPosition(bully.position.x, bully.position.y - 86);
-      bully.healthBar.setDisplaySize(48 * (bully.combat.health / 18), 5);
+      bully.healthBar.setPosition(bully.position.x, bully.position.y - (bully.isBoss ? 112 : 86));
+      bully.healthBar.setDisplaySize((bully.isBoss ? 96 : 48) * (bully.combat.health / (bully.isBoss ? 60 : bully.variant === "heavy" ? 30 : 18)), bully.isBoss ? 7 : 5);
+      if (bully.isBoss) bully.moodLabel.setText(decision.damagesPlayer ? "BOSS: CHARGE" : "BOSS: PRESSURE");
 
       if (decision.damagesPlayer && time >= this.nextPlayerDamageAt) {
         this.playerState = {
@@ -653,7 +657,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.combat = result.bully;
       bully.knockbackVelocity = getKnockbackVelocity(attack.knockback, this.facing, attack.launch);
       bully.moodLabel.setText(attack.launch ? "launched" : "hit");
-      bully.healthBar.setDisplaySize(48 * (bully.combat.health / 18), 5);
+      bully.healthBar.setDisplaySize((bully.isBoss ? 96 : 48) * (bully.combat.health / (bully.isBoss ? 60 : bully.variant === "heavy" ? 30 : 18)), bully.isBoss ? 7 : 5);
       this.playHitFeedback(attack, bully);
 
       if (bully.combat.defeated) {
@@ -683,7 +687,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.healthBar.destroy();
     }
     this.bullyWeirdos = [
-      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, this.campaignChapter === 1 ? "thrower" : "heavy"),
+      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, this.campaignChapter === 1 ? "thrower" : "heavy", this.campaignChapter === 2),
       this.createBullyWeirdo({ x: 620, y: 455 }, 160, false, "bully"),
       this.createBullyWeirdo({ x: 820, y: 430 }, 320, true, "charger"),
       this.createBullyWeirdo({ x: 760, y: 465 }, 480, false, this.campaignChapter === 1 ? "thrower" : "heavy"),
