@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("restart restores movement and Space run changes player speed", async ({ page }) => {
   await page.goto("/");
+  await page.keyboard.press("Enter");
   await page.waitForFunction(() => Boolean(window.__RAGEBLOCK__));
 
   const start = await page.evaluate(() => window.__RAGEBLOCK__!.getState().player.x);
