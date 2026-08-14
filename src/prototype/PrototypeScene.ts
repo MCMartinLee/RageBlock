@@ -91,6 +91,7 @@ export class PrototypeScene extends Phaser.Scene {
   private chapterLabel?: Phaser.GameObjects.Text;
   private paused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
+  private audioContext?: AudioContext;
 
   constructor() {
     super(PROTOTYPE_SCENE_KEY);
@@ -110,6 +111,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.cameras.main.centerOn(width / 2, height / 2);
 
     this.createSchoolyardCorner(width, height);
+    this.createExitMarkers();
     this.player = this.createPlayerSilhouette(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
     this.bullyWeirdos = [
       this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, "charger"),
@@ -336,6 +338,16 @@ export class PrototypeScene extends Phaser.Scene {
         0
       )
       .setStrokeStyle(2, 0xf0c15c, 0.8);
+  }
+
+  private createExitMarkers(): void {
+    const exit = this.add.container(ARENA_BOUNDS.right - 28, (ARENA_BOUNDS.top + ARENA_BOUNDS.bottom) / 2);
+    exit.add([
+      this.add.rectangle(0, 0, 8, 118, 0xf0c15c, 0.8),
+      this.add.triangle(-12, -48, 0, 0, 24, 14, 24, -14, 0xf0c15c, 0.9),
+      this.add.text(-82, 72, "NEXT BLOCK", { fontFamily: "Arial Black, Arial", fontSize: "12px", color: "#f0c15c" })
+    ]);
+    exit.setDepth(20);
   }
 
   private createPlayerSilhouette(x: number, y: number): Phaser.GameObjects.Container {
@@ -570,6 +582,22 @@ export class PrototypeScene extends Phaser.Scene {
     this.stateLabel?.setText(`State ${attack.kind}`);
     this.applyAttackToBullyWeirdos(attack, hitboxShape);
     this.applyAttackToToyboxProps(attack, hitboxShape);
+    this.playTone(attack.kind === "heavy" ? 120 : 220, attack.kind === "heavy" ? 0.12 : 0.06);
+  }
+
+  private playTone(frequency: number, duration: number): void {
+    const AudioContextClass = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    this.audioContext ??= new AudioContextClass();
+    const oscillator = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+    oscillator.frequency.value = frequency;
+    oscillator.type = "square";
+    gain.gain.setValueAtTime(0.035, this.audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+    oscillator.connect(gain).connect(this.audioContext.destination);
+    oscillator.start();
+    oscillator.stop(this.audioContext.currentTime + duration);
   }
 
   private updateBullyWeirdos(time: number, delta: number): void {
@@ -597,6 +625,12 @@ export class PrototypeScene extends Phaser.Scene {
         x: bully.position.x + (decision.velocity.x + bully.knockbackVelocity.x) * seconds,
         y: bully.position.y + (decision.velocity.y + bully.knockbackVelocity.y) * seconds
       });
+      if (bully.variant === "thrower") {
+        bully.position = clampToArena({
+          x: bully.position.x - decision.velocity.x * seconds * 0.45,
+          y: bully.position.y - decision.velocity.y * seconds * 0.45
+        });
+      }
 
       bully.body.setPosition(bully.position.x, bully.position.y);
       bully.body.setDepth(Math.round(bully.position.y));
