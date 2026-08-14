@@ -36,8 +36,8 @@ import {
 } from "./bullyPressure";
 
 const PLAYER_SPEED = 245;
-const BULLY_DAMAGE = 6;
-const PLAYER_DAMAGE_COOLDOWN_MS = 850;
+const BULLY_DAMAGE = 4;
+const PLAYER_DAMAGE_COOLDOWN_MS = 1050;
 
 type BullyActor = {
   body: Phaser.GameObjects.Container;
