@@ -6,8 +6,12 @@
 
 **Status:** ready-for-agent
 
-- [ ] The player starts in arena 1 and progresses through 3 arenas.
+- [x] The player starts in arena 1 and progresses through 3 arenas.
 - [ ] Each arena has clear boundaries and exits.
-- [ ] Enemy waves spawn and end cleanly.
-- [ ] Arena transitions work without resetting the whole game.
-- [ ] The game can still be completed quickly for testing.
+- [x] Enemy waves spawn and end cleanly.
+- [x] Arena transitions work without resetting the whole game.
+- [x] The game can still be completed quickly for testing.
+
+## Progress
+
+Three chapter transitions now run in one combat session. Physical connected arenas and exit gates remain for the larger level-design pass.

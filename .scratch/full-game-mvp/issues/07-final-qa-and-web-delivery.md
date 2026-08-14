@@ -9,7 +9,7 @@
 - [ ] Full game can be completed from title screen to ending.
 - [ ] Restart works after loss and win.
 - [ ] Automated tests pass.
-- [ ] Typecheck passes.
-- [ ] Production build passes.
-- [ ] README explains how to run, build, and play.
+- [x] Typecheck passes.
+- [x] Production build passes.
+- [x] README explains how to run, build, and play.
 - [ ] The web build is ready to deploy or upload.

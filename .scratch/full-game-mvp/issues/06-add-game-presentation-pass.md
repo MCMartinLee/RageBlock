@@ -6,9 +6,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] Add title screen.
-- [ ] Add pause or restart affordance.
+- [x] Add title screen.
+- [x] Add pause or restart affordance.
 - [ ] Add basic SFX placeholders for hit, heavy hit, hurt, break, clear, and boss defeat.
 - [ ] Add simple music placeholder or ambient loop.
 - [ ] Replace the roughest programmer art with cleaner programmer-art-plus shapes.
-- [ ] Improve HUD readability.
+- [x] Improve HUD readability.
+
+## Progress
+
+Title screen, pause overlay, chapter HUD, state HUD, and controls are implemented. Audio placeholders and the final art pass remain.
