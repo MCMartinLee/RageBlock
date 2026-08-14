@@ -107,6 +107,7 @@ export class PrototypeScene extends Phaser.Scene {
   private ambientTimer?: Phaser.Time.TimerEvent;
   private previousGamepadButtons: boolean[] = [];
   private chapterWorldLayer?: Phaser.GameObjects.Container;
+  private bossLaneGuide?: Phaser.GameObjects.Rectangle;
   private exitOpen = false;
 
   constructor() {
@@ -304,17 +305,23 @@ export class PrototypeScene extends Phaser.Scene {
 
     const seconds = delta / 1000;
     const speed = PLAYER_SPEED * getRageModeTuning(this.campaignState.mode).speedMultiplier * (running ? PLAYER_RUN_MULTIPLIER : 1);
-    const nextPosition = clampToArena({
+    let nextPosition = clampToArena({
       x: this.playerPosition.x + movement.x * speed * seconds,
       y: this.playerPosition.y + movement.y * speed * seconds
     });
+    const bossAlive = this.bullyWeirdos.some((bully) => bully.isBoss && !bully.combat.defeated);
+    const bossRule = bossAlive ? getBossRule(time - this.runStartedAt) : undefined;
+    if (bossRule === "lane-lock") nextPosition = { ...nextPosition, y: Phaser.Math.Clamp(nextPosition.y, 345, 425) };
+    this.bossLaneGuide?.setVisible(bossRule === "lane-lock").setAlpha(0.22 + Math.sin(time * 0.012) * 0.08);
 
     this.playerPosition = nextPosition;
-    this.player.setPosition(nextPosition.x, nextPosition.y);
+    if (!this.activeAttack) this.playerAnimationState = getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running);
+    const bob = this.playerAnimationState === "run" ? Math.sin(time * 0.025) * 5 : this.playerAnimationState === "move" ? Math.sin(time * 0.016) * 3 : Math.sin(time * 0.004) * 1.5;
+    this.player.setPosition(nextPosition.x, nextPosition.y + bob);
     this.player.setScale(this.facing === "right" ? 1 : -1, 1);
+    this.player.setRotation(this.activeAttack ? (this.facing === "right" ? -0.09 : 0.09) : Math.sin(time * 0.006) * 0.012);
     this.player.setDepth(Math.round(nextPosition.y));
     this.attackLabel?.setColor(running ? "#8de0ff" : "#f5f0e8");
-    this.playerAnimationState = getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running);
     this.stateLabel?.setText(`State ${this.playerAnimationState}`);
     if (nextPosition.x <= ARENA_BOUNDS.left + 36 && this.campaignState.routeNode === 0) {
       const chapter = getCampaignChapter(this.campaignChapter);
@@ -395,23 +402,26 @@ export class PrototypeScene extends Phaser.Scene {
   }
 
   private createPlayerSilhouette(x: number, y: number): Phaser.GameObjects.Container {
-    const shadow = this.add.ellipse(0, 28, 58, 16, 0x000000, 0.28);
-    const legs = this.add.rectangle(0, 16, 32, 42, 0x232026);
-    const hoodie = this.add.rectangle(0, -18, 54, 62, 0x7a3bd1);
-    const head = this.add.circle(0, -62, 24, 0xf0b36f);
-    const hair = this.add.rectangle(0, -78, 36, 12, 0x5a3022).setRotation(-0.1);
-    const leftEye = this.add.rectangle(-8, -64, 10, 4, 0xf7f0a1).setRotation(-0.25);
-    const rightEye = this.add.rectangle(9, -64, 10, 4, 0xf7f0a1).setRotation(0.25);
+    const shadow = this.add.ellipse(0, 31, 66, 17, 0x000000, 0.3);
+    const backArm = this.add.rectangle(-24, -18, 17, 50, 0x087f87).setRotation(0.24).setStrokeStyle(3, 0x17242b);
+    const legs = this.add.rectangle(0, 13, 38, 38, 0x242932).setStrokeStyle(3, 0x17242b);
+    const leftShoe = this.add.ellipse(-15, 32, 29, 14, 0xffd23f).setStrokeStyle(3, 0x17242b);
+    const rightShoe = this.add.ellipse(16, 32, 29, 14, 0xffd23f).setStrokeStyle(3, 0x17242b);
+    const hoodie = this.add.rectangle(0, -20, 58, 64, 0x0799a3).setStrokeStyle(4, 0x17242b);
+    const shirt = this.add.rectangle(0, -16, 20, 49, 0xf5f0e8).setStrokeStyle(2, 0x17242b);
+    const hood = this.add.ellipse(0, -45, 50, 25, 0x087f87).setStrokeStyle(3, 0x17242b);
+    const frontArm = this.add.rectangle(25, -17, 18, 50, 0x0799a3).setRotation(-0.2).setStrokeStyle(3, 0x17242b);
+    const cuff = this.add.rectangle(31, 5, 18, 12, 0xffd23f).setRotation(-0.2).setStrokeStyle(2, 0x17242b);
+    const head = this.add.circle(0, -67, 25, 0xf0b36f).setStrokeStyle(4, 0x17242b);
+    const hair = this.add.ellipse(0, -82, 48, 25, 0x2d2023).setRotation(-0.08).setStrokeStyle(3, 0x17242b);
+    const hairTuft = this.add.ellipse(14, -94, 23, 9, 0x2d2023).setRotation(-0.5);
+    const leftEye = this.add.rectangle(-9, -68, 12, 6, 0xffd23f).setRotation(-0.22).setStrokeStyle(2, 0x17242b);
+    const rightEye = this.add.rectangle(10, -68, 12, 6, 0xffd23f).setRotation(0.22).setStrokeStyle(2, 0x17242b);
+    const grin = this.add.arc(3, -56, 10, 15, 165, false, 0x17242b);
+    const remote = this.add.rectangle(-28, 1, 17, 25, 0xff6b35).setRotation(0.12).setStrokeStyle(3, 0x17242b);
+    const remoteLight = this.add.circle(-28, -4, 3, 0x36d1dc);
 
-    return this.add.container(x, y, [
-      shadow,
-      legs,
-      hoodie,
-      head,
-      hair,
-      leftEye,
-      rightEye
-    ]);
+    return this.add.container(x, y, [shadow, backArm, legs, leftShoe, rightShoe, hoodie, shirt, hood, frontArm, cuff, head, hair, hairTuft, leftEye, rightEye, grin, remote, remoteLight]);
   }
 
   private createBullyWeirdo(
@@ -429,6 +439,22 @@ export class PrototypeScene extends Phaser.Scene {
     const head = this.add.circle(0, -54, 22, 0xd99a67);
     const brow = this.add.rectangle(0, -62, 32, 6, 0x22181c).setRotation(canCharge ? 0.16 : -0.16);
     const grin = this.add.rectangle(0, -45, 22, 4, 0x22181c);
+    const accessories: Phaser.GameObjects.GameObject[] = [];
+    if (variant === "charger") {
+      accessories.push(this.add.arc(0, -64, 26, 180, 360, false, 0xff6b35).setStrokeStyle(3, 0x17242b));
+      accessories.push(this.add.rectangle(-25, -8, 15, 24, 0x242932).setRotation(0.3));
+    } else if (variant === "thrower") {
+      accessories.push(this.add.circle(27, -12, 11, 0x9be33b).setStrokeStyle(3, 0x17242b));
+      accessories.push(this.add.circle(-24, 10, 8, 0x36d1dc).setStrokeStyle(2, 0x17242b));
+    } else if (variant === "heavy") {
+      accessories.push(this.add.rectangle(-28, -18, 18, 35, 0x242932).setStrokeStyle(3, 0x17242b));
+      accessories.push(this.add.rectangle(28, -18, 18, 35, 0x242932).setStrokeStyle(3, 0x17242b));
+    }
+    if (isBoss) {
+      accessories.push(this.add.rectangle(3, -18, 16, 70, 0xf5f0e8).setRotation(-0.3).setStrokeStyle(2, 0x17242b));
+      accessories.push(this.add.circle(-24, -35, 8, 0xffd23f).setStrokeStyle(2, 0x17242b));
+      accessories.push(this.add.rectangle(34, -8, 18, 42, 0xd8d5c9).setStrokeStyle(3, 0x17242b));
+    }
     const moodLabel = this.add
       .text(0, isBoss ? -122 : -94, isBoss ? "BOSS: HALL MONITOR" : variant, {
         fontFamily: "Arial, sans-serif",
@@ -437,7 +463,7 @@ export class PrototypeScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    body.add([shadow, legs, shirt, head, brow, grin, moodLabel]);
+    body.add([shadow, legs, shirt, head, brow, grin, ...accessories, moodLabel]);
     body.setDepth(Math.round(position.y));
 
     return {
@@ -706,6 +732,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.body.setPosition(bully.position.x, bully.position.y);
       bully.body.setDepth(Math.round(bully.position.y));
       bully.body.setScale(decision.velocity.x < 0 ? -1 : 1, 1);
+      bully.body.setRotation(Math.sin((time + bully.position.x * 3) * (bully.variant === "heavy" ? 0.003 : 0.006)) * (bully.variant === "charger" ? 0.055 : 0.025));
       bully.moodLabel.setText(this.getMoodLabel(decision.mood));
       bully.healthBar.setPosition(bully.position.x, bully.position.y - (bully.isBoss ? 112 : 86));
       bully.healthBar.setDisplaySize((bully.isBoss ? 96 : 48) * (bully.combat.health / (bully.isBoss ? 60 : bully.variant === "heavy" ? 30 : 18)), bully.isBoss ? 7 : 5);
@@ -853,6 +880,10 @@ export class PrototypeScene extends Phaser.Scene {
   private spawnChapterWave(): void {
     this.bullyWeirdos = getChapterWaveBlueprint(this.campaignChapter)
       .map((entry) => this.createBullyWeirdo(entry.position, entry.delayMs, entry.canCharge, entry.variant === "boss" ? "heavy" : entry.variant, entry.variant === "boss"));
+    this.bossLaneGuide?.destroy();
+    this.bossLaneGuide = this.campaignChapter === 5
+      ? this.add.rectangle((ARENA_BOUNDS.left + ARENA_BOUNDS.right) / 2, 385, ARENA_BOUNDS.right - ARENA_BOUNDS.left, 80, 0xd83b87, 0.18).setStrokeStyle(4, 0xffd23f, 0.85).setDepth(10).setVisible(false)
+      : undefined;
   }
 
   private endRun(title: "Block Cleared" | "Knocked Out"): void {

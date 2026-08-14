@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("restart restores movement and Space run changes player speed", async ({ page }) => {
   await page.goto("/");
+  await page.waitForFunction(() => window.__RAGEBLOCK_TITLE_READY__ === true);
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => Boolean(window.__RAGEBLOCK__));
 
@@ -35,6 +36,7 @@ test("restart restores movement and Space run changes player speed", async ({ pa
 test("title and combat HUD remain usable on a narrow viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await page.waitForFunction(() => window.__RAGEBLOCK_TITLE_READY__ === true);
   await expect(page.locator("canvas")).toBeVisible();
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => Boolean(window.__RAGEBLOCK__));
@@ -44,6 +46,7 @@ test("title and combat HUD remain usable on a narrow viewport", async ({ page })
 
 test("campaign advances through route exits to the ending", async ({ page }) => {
   await page.goto("/");
+  await page.waitForFunction(() => window.__RAGEBLOCK_TITLE_READY__ === true);
   await page.keyboard.press("2");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => Boolean(window.__RAGEBLOCK__));

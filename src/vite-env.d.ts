@@ -2,6 +2,7 @@
 
 declare global {
   interface Window {
+    __RAGEBLOCK_TITLE_READY__?: boolean;
     __RAGEBLOCK__?: {
       getState: () => {
         player: {
