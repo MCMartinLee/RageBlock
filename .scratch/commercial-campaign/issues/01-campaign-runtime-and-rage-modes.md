@@ -4,10 +4,14 @@
 
 **Blocked by:** None - can start immediately.
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] Campaign state tracks chapter, route progress, recovered components, score, rank, modifiers, and completion.
-- [ ] Six chapters are represented as validated data with unique ids, objectives, rosters, rewards, and bosses.
-- [ ] Crash, Zip, and Junkstorm modes apply readable gameplay modifiers.
+- [x] Campaign state tracks chapter, route progress, recovered components, score, rank, modifiers, and completion.
+- [x] Six chapters are represented as validated data with unique ids, objectives, rosters, rewards, and bosses.
+- [x] Crash, Zip, and Junkstorm modes apply readable gameplay modifiers.
 - [ ] Restart and defeat restore the correct campaign state without stale Phaser state.
-- [ ] Pure tests cover chapter progression, mode selection, scoring, rank, rewards, and modifiers.
+- [x] Pure tests cover chapter progression, mode selection, scoring, rank, rewards, and modifiers.
+
+## Review Notes
+
+The pure campaign runtime is implemented and tested. Phaser scene integration, including restart/defeat wiring and mode selection UI, remains part of the connected-route implementation.
