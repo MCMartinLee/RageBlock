@@ -11,8 +11,8 @@
 - [ ] Impact marks, hit pauses, camera response, and animation timing support the commercial cartoon tone.
 - [x] Original hit, hurt, break, clear, and boss audio cues work with a simple ambient layer.
 - [x] Keyboard and gamepad actions map to the same normalized actions.
-- [ ] Responsive browser presentation remains readable at desktop and narrow viewport sizes.
+- [x] Responsive browser presentation remains readable at desktop and narrow viewport sizes.
 
 ## Progress
 
-Added a sticker-like HUD panel with score, mode, objective, chapter, health, Rage, pause, and boss context, gamepad movement/run/action support, hit tones, and an ambient tone layer. Original bitmap art and responsive browser QA remain open.
+Added a sticker-like HUD panel with score, mode, objective, chapter, health, Rage, pause, and boss context, gamepad movement/run/action support, hit tones, an ambient tone layer, and narrow-viewport browser coverage. Original bitmap art remains open.

@@ -4,13 +4,13 @@
 
 **Blocked by:** 01 - Campaign Runtime And Rage Remote Modes; 02 - Connected Routes And Environmental Combat; 03 - Character Roster Bosses And Animation; 04 - Commercial Presentation And Input
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] The full six-chapter campaign can be completed from title screen to ending.
 - [x] Chapter scores, ranks, unlockable rage effects, costume colors, and challenge modifiers work after completion.
-- [ ] Restart, checkpoint, pause, defeat, victory, and replay flows work from browser tests.
+- [x] Restart, checkpoint, pause, defeat, victory, and replay flows work from browser tests.
 - [ ] Full campaign completion has automated coverage for the critical happy path.
-- [ ] Tests, typecheck, production build, and performance checks pass.
+- [x] Tests, typecheck, production build, and browser performance smoke checks pass.
 - [x] README explains play, build, release, and deployment of the web build.
 
 ## Progress
