@@ -36,7 +36,8 @@ import {
 } from "./bullyPressure";
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 import { getCampaignChapter } from "../campaignDefinition";
-import { completeChapter, createCampaignState, getCampaignRank, type CampaignState } from "../campaignRuntime";
+import { completeChapter, createCampaignState, getCampaignRank, getRageModeTuning, recordDefeat, recordPlayerDefeat, restartCampaign, type CampaignState } from "../campaignRuntime";
+import { loadCampaign, saveCampaign } from "../campaignPersistence";
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 import { getBossRule, getBossRuleLabel } from "./bossRules";
 import { isGamepadActionPressed } from "./inputActions";
@@ -260,6 +261,10 @@ export class PrototypeScene extends Phaser.Scene {
       this.time.timeScale = 1;
       this.tweens.timeScale = 1;
       this.input.keyboard?.resetKeys();
+      if (this.campaignState.completed) {
+        this.campaignState = restartCampaign(this.campaignState);
+        saveCampaign(window.localStorage, this.campaignState);
+      }
       this.scene.restart();
       return;
     }
@@ -295,7 +300,7 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     const seconds = delta / 1000;
-    const speed = PLAYER_SPEED * (running ? PLAYER_RUN_MULTIPLIER : 1);
+    const speed = PLAYER_SPEED * getRageModeTuning(this.campaignState.mode).speedMultiplier * (running ? PLAYER_RUN_MULTIPLIER : 1);
     const nextPosition = clampToArena({
       x: this.playerPosition.x + movement.x * speed * seconds,
       y: this.playerPosition.y + movement.y * speed * seconds
@@ -313,7 +318,11 @@ export class PrototypeScene extends Phaser.Scene {
       this.playerPosition = { ...PLAYER_SPAWN };
       this.player.setPosition(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
       if (this.campaignChapter < 5) this.advanceChapter();
-      else this.endRun("Block Cleared");
+      else {
+        this.campaignState = completeChapter(this.campaignState);
+        saveCampaign(window.localStorage, this.campaignState);
+        this.endRun("Block Cleared");
+      }
     }
 
     if (this.activeAttack && time >= this.attackingUntil) {
@@ -528,8 +537,9 @@ export class PrototypeScene extends Phaser.Scene {
     this.bullyWeirdos = [];
     this.toyboxProps = [];
     this.nextPlayerDamageAt = 0;
-    this.campaignChapter = 0;
-    this.campaignState = createCampaignState();
+    this.campaignState = loadCampaign(window.localStorage);
+    this.campaignChapter = this.campaignState.completed ? 0 : this.campaignState.chapterIndex;
+    if (this.campaignState.completed) this.campaignState = restartCampaign(this.campaignState);
     this.exitOpen = false;
     this.paused = false;
     this.pauseOverlay = undefined;
@@ -583,7 +593,9 @@ export class PrototypeScene extends Phaser.Scene {
   }
 
   private showAttack(attack: AttackOutcome, time: number): void {
-    const presentation = getAttackPresentation(attack, this.facing);
+    const tuning = getRageModeTuning(this.campaignState.mode);
+    const effectiveAttack = { ...attack, knockback: Math.round(attack.knockback * tuning.knockbackMultiplier) };
+    const presentation = getAttackPresentation(effectiveAttack, this.facing);
     const hitboxShape = createAttackHitbox(this.playerPosition, presentation);
     const x = hitboxShape.center.x;
     const y = hitboxShape.center.y;
@@ -610,12 +622,12 @@ export class PrototypeScene extends Phaser.Scene {
     this.activeAttack.add([hitbox, arrow]);
     this.activeAttack.setDepth(Math.round(this.playerPosition.y) + 10);
     this.attackingUntil = time + presentation.durationMs;
-    this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
-    this.stateLabel?.setText(`State ${attack.kind}`);
-    this.playerAnimationState = attack.kind;
-    this.applyAttackToBullyWeirdos(attack, hitboxShape);
-    this.applyAttackToToyboxProps(attack, hitboxShape);
-    this.playTone(attack.kind === "heavy" ? 120 : 220, attack.kind === "heavy" ? 0.12 : 0.06);
+    this.attackLabel?.setText(`${presentation.label} | knockback ${effectiveAttack.knockback}`);
+    this.stateLabel?.setText(`State ${effectiveAttack.kind}`);
+    this.playerAnimationState = effectiveAttack.kind;
+    this.applyAttackToBullyWeirdos(effectiveAttack, hitboxShape);
+    this.applyAttackToToyboxProps({ ...effectiveAttack, knockback: Math.round(effectiveAttack.knockback * tuning.propMultiplier) }, hitboxShape);
+    this.playTone(effectiveAttack.kind === "heavy" ? 120 : 220, effectiveAttack.kind === "heavy" ? 0.12 : 0.06);
   }
 
   private playTone(frequency: number, duration: number): void {
@@ -685,6 +697,8 @@ export class PrototypeScene extends Phaser.Scene {
         this.updateHealthLabel();
         this.flashTarget(this.player, 0x8de0ff, 120);
         if (this.playerState.health <= 0) {
+          this.campaignState = recordPlayerDefeat(this.campaignState);
+          saveCampaign(window.localStorage, this.campaignState);
           this.endRun("Knocked Out");
         }
       }
@@ -755,6 +769,9 @@ export class PrototypeScene extends Phaser.Scene {
       this.playHitFeedback(attack, bully);
 
       if (bully.combat.defeated) {
+        this.campaignState = recordDefeat(this.campaignState);
+        saveCampaign(window.localStorage, this.campaignState);
+        this.updatePresentationLabels();
         bully.body.setAlpha(0.35);
         bully.healthBar.setAlpha(0.25);
       }
@@ -772,8 +789,9 @@ export class PrototypeScene extends Phaser.Scene {
   }
 
   private advanceChapter(): void {
-    this.campaignChapter += 1;
     this.campaignState = completeChapter(this.campaignState);
+    saveCampaign(window.localStorage, this.campaignState);
+    this.campaignChapter = this.campaignState.chapterIndex;
     for (const bully of this.bullyWeirdos) {
       bully.body.destroy();
       bully.healthBar.destroy();

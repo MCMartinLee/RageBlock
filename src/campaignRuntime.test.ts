@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_CHAPTERS, validateCampaignChapters } from "./campaignDefinition";
-import { advanceRouteNode, completeChapter, completeSideRoom, createCampaignState, getCampaignRank, recordDefeat, selectRageMode } from "./campaignRuntime";
+import { advanceRouteNode, completeChapter, completeSideRoom, createCampaignState, getCampaignRank, getRageModeTuning, recordDefeat, recordPlayerDefeat, restartCampaign, selectRageMode } from "./campaignRuntime";
 
 describe("campaign runtime", () => {
   it("validates the six-chapter campaign", () => {
@@ -29,5 +29,17 @@ describe("campaign runtime", () => {
     expect(sideRoom.routeNode).toBe(2);
     expect(sideRoom.recoveredRewards).toContain("bonus-sticker");
     expect(sideRoom.score).toBe(250);
+  });
+
+  it("restores defeat and replay state safely", () => {
+    const progressed = completeSideRoom(createCampaignState("zip"), "bonus-sticker");
+    expect(recordPlayerDefeat(progressed).routeNode).toBe(0);
+    expect(restartCampaign(progressed).recoveredRewards).toContain("bonus-sticker");
+  });
+
+  it("gives every Rage mode a real tuning effect", () => {
+    expect(getRageModeTuning("crash").knockbackMultiplier).toBeGreaterThan(1);
+    expect(getRageModeTuning("zip").speedMultiplier).toBeGreaterThan(1);
+    expect(getRageModeTuning("junkstorm").propMultiplier).toBeGreaterThan(1);
   });
 });

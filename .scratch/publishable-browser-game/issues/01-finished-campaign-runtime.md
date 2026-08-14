@@ -4,10 +4,14 @@
 
 **Blocked by:** None - can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Six chapters, route nodes, side rooms, rewards, Rage modes, score, ranks, modifiers, and completion are authoritative runtime state.
-- [ ] Restart, defeat, checkpoint, pause, victory, and replay restore or preserve the correct state.
-- [ ] Crash, Zip, and Junkstorm affect real gameplay and presentation, not only labels.
-- [ ] Local browser persistence stores campaign unlocks, scores, modes, cosmetics, and modifiers.
-- [ ] Pure tests cover the complete campaign state machine.
+- [x] Six chapters, route nodes, side rooms, rewards, Rage modes, score, ranks, modifiers, and completion are authoritative runtime state.
+- [x] Restart, defeat, checkpoint, pause, victory, and replay restore or preserve the correct state.
+- [x] Crash, Zip, and Junkstorm affect real gameplay and presentation, not only labels.
+- [x] Local browser persistence stores campaign unlocks, scores, modes, cosmetics, and modifiers.
+- [x] Pure tests cover the complete campaign state machine.
+
+## Answer
+
+Campaign progress is now loaded and saved through browser storage, mode selection happens on the title screen, defeat/restart/replay transitions preserve the intended progress, score and rewards are authoritative, and Crash, Zip, and Junkstorm apply distinct combat tuning.
