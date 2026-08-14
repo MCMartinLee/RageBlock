@@ -10,6 +10,7 @@ import {
   createCombatRunState,
   createPlayerState,
   getLightComboAttack,
+  isBlockCleared,
   spendRageOnHeavyAttack,
   type AttackOutcome,
   type BullyWeirdoState,
@@ -58,7 +59,7 @@ type ToyboxProp = {
 export class PrototypeScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
-  private attackKeys?: Record<"light" | "heavy", Phaser.Input.Keyboard.Key>;
+  private attackKeys?: Record<"light" | "heavy" | "restart", Phaser.Input.Keyboard.Key>;
   private player?: Phaser.GameObjects.Container;
   private playerPosition: Point = { ...PLAYER_SPAWN };
   private facing: FacingDirection = "right";
@@ -72,6 +73,10 @@ export class PrototypeScene extends Phaser.Scene {
   private rageLabel?: Phaser.GameObjects.Text;
   private defeatLabel?: Phaser.GameObjects.Text;
   private damageTaken = 0;
+  private hitsLanded = 0;
+  private runStartedAt = 0;
+  private runEnded = false;
+  private resultOverlay?: Phaser.GameObjects.Container;
   private bullyWeirdos: BullyActor[] = [];
   private toyboxProps: ToyboxProp[] = [];
   private nextPlayerDamageAt = 0;
@@ -82,6 +87,7 @@ export class PrototypeScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale;
+    this.runStartedAt = this.time.now;
 
     this.cameras.main.setBounds(0, 0, width, height);
     this.cameras.main.centerOn(width / 2, height / 2);
@@ -91,7 +97,12 @@ export class PrototypeScene extends Phaser.Scene {
     this.bullyWeirdos = [
       this.createBullyWeirdo({ x: 710, y: 375 }, 0, true),
       this.createBullyWeirdo({ x: 620, y: 455 }, 160, false),
-      this.createBullyWeirdo({ x: 820, y: 430 }, 320, true)
+      this.createBullyWeirdo({ x: 820, y: 430 }, 320, true),
+      this.createBullyWeirdo({ x: 760, y: 465 }, 480, false),
+      this.createBullyWeirdo({ x: 675, y: 315 }, 640, true),
+      this.createBullyWeirdo({ x: 860, y: 360 }, 800, false),
+      this.createBullyWeirdo({ x: 585, y: 395 }, 960, true),
+      this.createBullyWeirdo({ x: 805, y: 485 }, 1120, false)
     ];
     this.toyboxProps = [
       this.createToyboxProp("cone", { x: 430, y: 452 }),
@@ -108,8 +119,9 @@ export class PrototypeScene extends Phaser.Scene {
     }) as Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
     this.attackKeys = this.input.keyboard?.addKeys({
       light: Phaser.Input.Keyboard.KeyCodes.J,
-      heavy: Phaser.Input.Keyboard.KeyCodes.K
-    }) as Record<"light" | "heavy", Phaser.Input.Keyboard.Key>;
+      heavy: Phaser.Input.Keyboard.KeyCodes.K,
+      restart: Phaser.Input.Keyboard.KeyCodes.R
+    }) as Record<"light" | "heavy" | "restart", Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
@@ -183,6 +195,15 @@ export class PrototypeScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     if (!this.player) {
+      return;
+    }
+
+    if (this.attackKeys && Phaser.Input.Keyboard.JustDown(this.attackKeys.restart)) {
+      this.scene.restart();
+      return;
+    }
+
+    if (this.runEnded) {
       return;
     }
 
@@ -453,6 +474,9 @@ export class PrototypeScene extends Phaser.Scene {
         this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
         this.updateHealthLabel();
         this.flashTarget(this.player, 0x8de0ff, 120);
+        if (this.playerState.health <= 0) {
+          this.endRun("Knocked Out");
+        }
       }
     }
   }
@@ -512,6 +536,7 @@ export class PrototypeScene extends Phaser.Scene {
       }
 
       const result = applyAttackToBullyWeirdo(this.combatRun, bully.combat, attack);
+      this.hitsLanded += 1;
       this.combatRun = result.run;
       bully.combat = result.bully;
       bully.knockbackVelocity = getKnockbackVelocity(attack.knockback, this.facing, attack.launch);
@@ -530,6 +555,40 @@ export class PrototypeScene extends Phaser.Scene {
       rage: this.combatRun.rage
     };
     this.updateRunLabels();
+    if (isBlockCleared(this.combatRun)) {
+      this.endRun("Block Cleared");
+    }
+  }
+
+  private endRun(title: "Block Cleared" | "Knocked Out"): void {
+    if (this.runEnded) {
+      return;
+    }
+
+    this.runEnded = true;
+    const elapsedSeconds = Math.max(0, Math.round((this.time.now - this.runStartedAt) / 1000));
+    const { width, height } = this.scale;
+    const panel = this.add.rectangle(0, 0, 420, 250, 0x16171d, 0.92).setStrokeStyle(3, 0xf0c15c);
+    const heading = this.add.text(0, -88, title, {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "34px",
+      color: title === "Block Cleared" ? "#f0c15c" : "#ff5f4d"
+    }).setOrigin(0.5);
+    const stats = this.add.text(0, -24, [
+      `Time ${elapsedSeconds}s`,
+      `Hits Landed ${this.hitsLanded}`,
+      `Damage Taken ${this.damageTaken}`,
+      "",
+      "Press R to restart"
+    ], {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "19px",
+      color: "#f5f0e8",
+      align: "center"
+    }).setOrigin(0.5);
+
+    this.resultOverlay = this.add.container(width / 2, height / 2, [panel, heading, stats]);
+    this.resultOverlay.setDepth(5000);
   }
 
   private applyAttackToToyboxProps(attack: AttackOutcome, hitboxShape: ReturnType<typeof createAttackHitbox>): void {
