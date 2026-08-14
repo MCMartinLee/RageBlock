@@ -26,6 +26,7 @@ import {
 import { getAttackPresentation, type FacingDirection } from "./attackPresentation";
 import { createAttackHitbox, getKnockbackVelocity, isPointInsideHitbox } from "./hitDetection";
 import { getHitFeedback } from "./hitFeedback";
+import { applyAttackToProp, createPropState, type PropKind, type PropState } from "./propReaction";
 import {
   createBullyPressureState,
   updateBullyPressure,
@@ -47,6 +48,13 @@ type BullyActor = {
   healthBar: Phaser.GameObjects.Rectangle;
 };
 
+type ToyboxProp = {
+  body: Phaser.GameObjects.Container;
+  position: Point;
+  velocity: Point;
+  state: PropState;
+};
+
 export class PrototypeScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
@@ -65,6 +73,7 @@ export class PrototypeScene extends Phaser.Scene {
   private defeatLabel?: Phaser.GameObjects.Text;
   private damageTaken = 0;
   private bullyWeirdos: BullyActor[] = [];
+  private toyboxProps: ToyboxProp[] = [];
   private nextPlayerDamageAt = 0;
 
   constructor() {
@@ -83,6 +92,11 @@ export class PrototypeScene extends Phaser.Scene {
       this.createBullyWeirdo({ x: 710, y: 375 }, 0, true),
       this.createBullyWeirdo({ x: 620, y: 455 }, 160, false),
       this.createBullyWeirdo({ x: 820, y: 430 }, 320, true)
+    ];
+    this.toyboxProps = [
+      this.createToyboxProp("cone", { x: 430, y: 452 }),
+      this.createToyboxProp("trash-can", { x: 535, y: 340 }),
+      this.createToyboxProp("ball", { x: 350, y: 365 })
     ];
 
     this.cursors = this.input.keyboard?.createCursorKeys();
@@ -205,6 +219,7 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     this.updateBullyWeirdos(time, delta);
+    this.updateToyboxProps(delta);
   }
 
   private createSchoolyardCorner(width: number, height: number): void {
@@ -290,6 +305,39 @@ export class PrototypeScene extends Phaser.Scene {
     };
   }
 
+  private createToyboxProp(kind: PropKind, position: Point): ToyboxProp {
+    const body = this.add.container(position.x, position.y);
+
+    if (kind === "cone") {
+      body.add([
+        this.add.triangle(0, -18, -18, 22, 0, -24, 18, 22, 0xf07d32),
+        this.add.rectangle(0, 20, 42, 8, 0xf5f0e8)
+      ]);
+    } else if (kind === "trash-can") {
+      body.add([
+        this.add.rectangle(0, -8, 34, 48, 0x6f7d84),
+        this.add.rectangle(0, -35, 44, 10, 0x9aa7ad),
+        this.add.rectangle(-10, -8, 4, 36, 0x465156),
+        this.add.rectangle(10, -8, 4, 36, 0x465156)
+      ]);
+    } else {
+      body.add([
+        this.add.circle(0, -12, 18, 0xf0c15c),
+        this.add.circle(-7, -18, 4, 0x202129),
+        this.add.circle(7, -6, 4, 0x202129)
+      ]);
+    }
+
+    body.setDepth(Math.round(position.y));
+
+    return {
+      body,
+      position,
+      velocity: { x: 0, y: 0 },
+      state: createPropState(kind)
+    };
+  }
+
   private getMovementInput(): Point {
     const left = this.cursors?.left.isDown || this.wasd?.left.isDown;
     const right = this.cursors?.right.isDown || this.wasd?.right.isDown;
@@ -360,6 +408,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.attackingUntil = time + presentation.durationMs;
     this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
     this.applyAttackToBullyWeirdos(attack, hitboxShape);
+    this.applyAttackToToyboxProps(attack, hitboxShape);
   }
 
   private updateBullyWeirdos(time: number, delta: number): void {
@@ -417,6 +466,37 @@ export class PrototypeScene extends Phaser.Scene {
     this.defeatLabel?.setText(`Defeated ${this.combatRun.defeatedBullyWeirdos}/8`);
   }
 
+  private updateToyboxProps(delta: number): void {
+    const seconds = delta / 1000;
+
+    for (const prop of this.toyboxProps) {
+      if (prop.state.broken) {
+        prop.velocity = {
+          x: prop.velocity.x * 0.8,
+          y: prop.velocity.y * 0.8
+        };
+      } else {
+        prop.velocity = {
+          x: prop.velocity.x * 0.91,
+          y: (prop.velocity.y + 520 * seconds) * 0.91
+        };
+      }
+
+      prop.position = clampToArena({
+        x: prop.position.x + prop.velocity.x * seconds,
+        y: prop.position.y + prop.velocity.y * seconds
+      });
+
+      if (prop.position.y >= ARENA_BOUNDS.bottom - 1 && prop.velocity.y > 0) {
+        prop.velocity.y = prop.state.kind === "ball" ? -Math.abs(prop.velocity.y) * 0.62 : 0;
+      }
+
+      prop.body.setPosition(prop.position.x, prop.position.y);
+      prop.body.setRotation(prop.body.rotation + prop.velocity.x * seconds * 0.01);
+      prop.body.setDepth(Math.round(prop.position.y));
+    }
+  }
+
   private getMoodLabel(mood: BullyMood): string {
     if (mood === "backing-off") {
       return "back off";
@@ -450,6 +530,26 @@ export class PrototypeScene extends Phaser.Scene {
       rage: this.combatRun.rage
     };
     this.updateRunLabels();
+  }
+
+  private applyAttackToToyboxProps(attack: AttackOutcome, hitboxShape: ReturnType<typeof createAttackHitbox>): void {
+    for (const prop of this.toyboxProps) {
+      if (!isPointInsideHitbox(prop.position, hitboxShape)) {
+        continue;
+      }
+
+      const reaction = applyAttackToProp(prop.state, attack, this.facing);
+      prop.state = reaction.state;
+      prop.velocity = reaction.velocity;
+      this.spawnHitSparks(prop.position, prop.state.kind === "ball" ? 4 : 3, 0xf0c15c);
+
+      if (reaction.breaksNow) {
+        prop.body.setAlpha(0.45);
+        this.squashTarget(prop.body, 1.35, 0.6, 120);
+      } else {
+        this.squashTarget(prop.body, 1.16, 0.82, 90);
+      }
+    }
   }
 
   private playHitFeedback(attack: AttackOutcome, bully: BullyActor): void {

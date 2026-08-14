@@ -4,10 +4,14 @@
 
 **Blocked by:** 06 - Connect Hits, Damage, Rage, And Defeats
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The schoolyard corner includes 2-3 simple props such as cones, trash cans, a loose ball, or a crate.
-- [ ] Props use programmer art silhouettes and remain visually distinct from characters.
-- [ ] Player attacks can make props bounce, break, or get knocked around.
-- [ ] Prop reactions contribute toybox chaos without blocking the core combat loop.
-- [ ] Props do not require final art or a full destruction system.
+- [x] The schoolyard corner includes 2-3 simple props such as cones, trash cans, a loose ball, or a crate.
+- [x] Props use programmer art silhouettes and remain visually distinct from characters.
+- [x] Player attacks can make props bounce, break, or get knocked around.
+- [x] Prop reactions contribute toybox chaos without blocking the core combat loop.
+- [x] Props do not require final art or a full destruction system.
+
+## Answer
+
+Added cone, trash-can, and ball props with programmer art silhouettes. Player attacks can knock them around, bounce the ball, and break non-ball props without introducing a full destruction system.
