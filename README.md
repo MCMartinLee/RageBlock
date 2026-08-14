@@ -19,6 +19,7 @@ The current playable build enters through a title screen and contains the combat
 - J or left click: light combo
 - K or right click: heavy launcher
 - Space, Shift, or L: run
+- P: pause/resume
 - R: restart after Block Cleared or Knocked Out
 
 Attacks pressed during another attack are buffered and fire when the current hit finishes.

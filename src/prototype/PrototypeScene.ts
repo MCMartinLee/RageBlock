@@ -64,7 +64,7 @@ type ToyboxProp = {
 export class PrototypeScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
-  private actionKeys?: Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart", Phaser.Input.Keyboard.Key>;
+  private actionKeys?: Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart" | "pause", Phaser.Input.Keyboard.Key>;
   private player?: Phaser.GameObjects.Container;
   private playerPosition: Point = { ...PLAYER_SPAWN };
   private facing: FacingDirection = "right";
@@ -89,6 +89,8 @@ export class PrototypeScene extends Phaser.Scene {
   private nextPlayerDamageAt = 0;
   private campaignChapter = 0;
   private chapterLabel?: Phaser.GameObjects.Text;
+  private paused = false;
+  private pauseOverlay?: Phaser.GameObjects.Container;
 
   constructor() {
     super(PROTOTYPE_SCENE_KEY);
@@ -141,6 +143,7 @@ export class PrototypeScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.J,
       Phaser.Input.Keyboard.KeyCodes.K,
       Phaser.Input.Keyboard.KeyCodes.R
+      , Phaser.Input.Keyboard.KeyCodes.P
     ]);
     this.wasd = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -155,7 +158,8 @@ export class PrototypeScene extends Phaser.Scene {
       runAlt: Phaser.Input.Keyboard.KeyCodes.SHIFT,
       runAlt2: Phaser.Input.Keyboard.KeyCodes.L,
       restart: Phaser.Input.Keyboard.KeyCodes.R
-    }) as Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart", Phaser.Input.Keyboard.Key>;
+      , pause: Phaser.Input.Keyboard.KeyCodes.P
+    }) as Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart" | "pause", Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
@@ -186,7 +190,7 @@ export class PrototypeScene extends Phaser.Scene {
         height - 70,
         [
           "Move: WASD / Arrow Keys",
-          `${RESERVED_CONTROLS.lightAttack.join(" / ")} light, ${RESERVED_CONTROLS.heavyAttack.join(" / ")} heavy, Space / ${RESERVED_CONTROLS.dash.join(" / ")} run, R restart`
+          `${RESERVED_CONTROLS.lightAttack.join(" / ")} light, ${RESERVED_CONTROLS.heavyAttack.join(" / ")} heavy, Space / ${RESERVED_CONTROLS.dash.join(" / ")} run, P pause, R restart`
         ],
         {
           fontFamily: "Arial, sans-serif",
@@ -249,6 +253,12 @@ export class PrototypeScene extends Phaser.Scene {
       this.scene.restart();
       return;
     }
+
+    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.pause)) {
+      this.togglePause();
+    }
+
+    if (this.paused) return;
 
     if (this.runEnded) {
       return;
@@ -477,6 +487,22 @@ export class PrototypeScene extends Phaser.Scene {
     this.toyboxProps = [];
     this.nextPlayerDamageAt = 0;
     this.campaignChapter = 0;
+    this.paused = false;
+    this.pauseOverlay = undefined;
+  }
+
+  private togglePause(): void {
+    this.paused = !this.paused;
+    if (this.paused) {
+      const { width, height } = this.scale;
+      const panel = this.add.rectangle(0, 0, 360, 150, 0x16171d, 0.96).setStrokeStyle(3, 0xf0c15c);
+      const title = this.add.text(0, -28, "PAUSED", { fontFamily: "Arial Black, Arial", fontSize: "32px", color: "#f5f0e8" }).setOrigin(0.5);
+      const hint = this.add.text(0, 28, "Press P to resume", { fontFamily: "Arial", fontSize: "18px", color: "#d8d5c9" }).setOrigin(0.5);
+      this.pauseOverlay = this.add.container(width / 2, height / 2, [panel, title, hint]).setDepth(6000);
+    } else {
+      this.pauseOverlay?.destroy();
+      this.pauseOverlay = undefined;
+    }
   }
 
   private updateChapterLabel(): void {
