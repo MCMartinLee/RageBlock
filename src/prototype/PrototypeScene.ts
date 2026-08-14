@@ -39,6 +39,7 @@ import { getCampaignChapter } from "../campaignDefinition";
 import { completeChapter, createCampaignState, type CampaignState } from "../campaignRuntime";
 import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 import { getBossRule, getBossRuleLabel } from "./bossRules";
+import { isGamepadActionPressed } from "./inputActions";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -99,6 +100,8 @@ export class PrototypeScene extends Phaser.Scene {
   private paused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
   private audioContext?: AudioContext;
+  private ambientTimer?: Phaser.Time.TimerEvent;
+  private previousGamepadButtons: boolean[] = [];
   private exitOpen = false;
 
   constructor() {
@@ -252,6 +255,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.updateRunLabels();
     this.updateChapterLabel();
     this.updatePresentationLabels();
+    this.ambientTimer = this.time.addEvent({ delay: 2600, loop: true, callback: () => this.playTone(72, 0.18) });
     this.publishDebugState();
   }
 
@@ -268,21 +272,25 @@ export class PrototypeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.pause)) {
+    const pad = this.input.gamepad?.getPad(0);
+    const padButtons = pad ? Array.from({ length: 10 }, (_, index) => Boolean(pad.buttons[index]?.pressed)) : [];
+    const padPressed = (action: "light" | "heavy" | "pause") => isGamepadActionPressed(padButtons, action) && !isGamepadActionPressed(this.previousGamepadButtons, action);
+    if ((this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.pause)) || padPressed("pause")) {
       this.togglePause();
     }
 
+    this.previousGamepadButtons = padButtons;
     if (this.paused) return;
 
     if (this.runEnded) {
       return;
     }
 
-    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.light)) {
+    if ((this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.light)) || padPressed("light")) {
       this.requestAttack("light", time);
     }
 
-    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.heavy)) {
+    if ((this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.heavy)) || padPressed("heavy")) {
       this.requestAttack("heavy", time);
     }
 
