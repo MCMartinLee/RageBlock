@@ -5,20 +5,35 @@ import {
   PROTOTYPE_TITLE
 } from "./prototypeDefinition";
 import {
+  createPlayerState,
+  getLightComboAttack,
+  spendRageOnHeavyAttack,
+  type AttackOutcome,
+  type PlayerState
+} from "./combatRules";
+import {
   ARENA_BOUNDS,
   clampToArena,
   PLAYER_SPAWN,
   RESERVED_CONTROLS,
   type Point
 } from "./arenaDefinition";
+import { getAttackPresentation, type FacingDirection } from "./attackPresentation";
 
 const PLAYER_SPEED = 245;
 
 export class PrototypeScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
+  private attackKeys?: Record<"light" | "heavy", Phaser.Input.Keyboard.Key>;
   private player?: Phaser.GameObjects.Container;
   private playerPosition: Point = { ...PLAYER_SPAWN };
+  private facing: FacingDirection = "right";
+  private comboStep = 0;
+  private playerState: PlayerState = createPlayerState();
+  private attackingUntil = 0;
+  private activeAttack?: Phaser.GameObjects.Container;
+  private attackLabel?: Phaser.GameObjects.Text;
 
   constructor() {
     super(PROTOTYPE_SCENE_KEY);
@@ -40,6 +55,19 @@ export class PrototypeScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D
     }) as Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
+    this.attackKeys = this.input.keyboard?.addKeys({
+      light: Phaser.Input.Keyboard.KeyCodes.J,
+      heavy: Phaser.Input.Keyboard.KeyCodes.K
+    }) as Record<"light" | "heavy", Phaser.Input.Keyboard.Key>;
+
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (pointer.rightButtonDown()) {
+        this.performHeavyAttack(this.time.now);
+        return;
+      }
+
+      this.performLightAttack(this.time.now);
+    });
 
     this.add
       .text(24, 18, PROTOTYPE_TITLE, {
@@ -69,14 +97,36 @@ export class PrototypeScene extends Phaser.Scene {
           color: "#d8d5c9"
         }
       );
+
+    this.attackLabel = this.add
+      .text(width - 24, 24, "Ready", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        color: "#f5f0e8"
+      })
+      .setOrigin(1, 0);
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     if (!this.player) {
       return;
     }
 
+    if (this.attackKeys && Phaser.Input.Keyboard.JustDown(this.attackKeys.light)) {
+      this.performLightAttack(time);
+    }
+
+    if (this.attackKeys && Phaser.Input.Keyboard.JustDown(this.attackKeys.heavy)) {
+      this.performHeavyAttack(time);
+    }
+
     const movement = this.getMovementInput();
+    if (movement.x < 0) {
+      this.facing = "left";
+    } else if (movement.x > 0) {
+      this.facing = "right";
+    }
+
     const seconds = delta / 1000;
     const nextPosition = clampToArena({
       x: this.playerPosition.x + movement.x * PLAYER_SPEED * seconds,
@@ -85,7 +135,14 @@ export class PrototypeScene extends Phaser.Scene {
 
     this.playerPosition = nextPosition;
     this.player.setPosition(nextPosition.x, nextPosition.y);
+    this.player.setScale(this.facing === "right" ? 1 : -1, 1);
     this.player.setDepth(Math.round(nextPosition.y));
+
+    if (this.activeAttack && time >= this.attackingUntil) {
+      this.activeAttack.destroy();
+      this.activeAttack = undefined;
+      this.attackLabel?.setText("Ready");
+    }
   }
 
   private createSchoolyardCorner(width: number, height: number): void {
@@ -157,5 +214,48 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     return movement;
+  }
+
+  private performLightAttack(time: number): void {
+    const attack = getLightComboAttack(this.comboStep);
+    this.comboStep = attack.nextComboStep;
+    this.showAttack(attack, time);
+  }
+
+  private performHeavyAttack(time: number): void {
+    const result = spendRageOnHeavyAttack(this.playerState);
+    this.playerState = result.player;
+    this.comboStep = 0;
+    this.showAttack(result.attack, time);
+  }
+
+  private showAttack(attack: AttackOutcome, time: number): void {
+    const presentation = getAttackPresentation(attack, this.facing);
+    const x = this.playerPosition.x + presentation.hitboxOffsetX;
+    const y = this.playerPosition.y - 30;
+
+    this.activeAttack?.destroy();
+    this.activeAttack = this.add.container(x, y);
+
+    const hitbox = this.add
+      .rectangle(0, 0, presentation.hitboxWidth, presentation.hitboxHeight, presentation.color, 0.28)
+      .setStrokeStyle(3, presentation.color, 0.95);
+    const arrow = this.add.triangle(
+      presentation.hitboxOffsetX > 0 ? presentation.hitboxWidth / 2 + 18 : -presentation.hitboxWidth / 2 - 18,
+      0,
+      presentation.hitboxOffsetX > 0 ? -12 : 12,
+      -16,
+      presentation.hitboxOffsetX > 0 ? -12 : 12,
+      16,
+      presentation.hitboxOffsetX > 0 ? 14 : -14,
+      0,
+      presentation.color,
+      0.8
+    );
+
+    this.activeAttack.add([hitbox, arrow]);
+    this.activeAttack.setDepth(Math.round(this.playerPosition.y) + 10);
+    this.attackingUntil = time + presentation.durationMs;
+    this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
   }
 }
