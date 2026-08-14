@@ -36,6 +36,7 @@ import {
 } from "./bullyPressure";
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 import { getCampaignChapter } from "../campaignDefinition";
+import { completeChapter, createCampaignState, type CampaignState } from "../campaignRuntime";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -88,6 +89,7 @@ export class PrototypeScene extends Phaser.Scene {
   private toyboxProps: ToyboxProp[] = [];
   private nextPlayerDamageAt = 0;
   private campaignChapter = 0;
+  private campaignState: CampaignState = createCampaignState();
   private chapterLabel?: Phaser.GameObjects.Text;
   private paused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
@@ -499,6 +501,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.toyboxProps = [];
     this.nextPlayerDamageAt = 0;
     this.campaignChapter = 0;
+    this.campaignState = createCampaignState();
     this.paused = false;
     this.pauseOverlay = undefined;
   }
@@ -519,7 +522,7 @@ export class PrototypeScene extends Phaser.Scene {
 
   private updateChapterLabel(): void {
     const chapter = getCampaignChapter(this.campaignChapter);
-    this.chapterLabel?.setText(`Chapter ${this.campaignChapter + 1}/3: ${chapter.title}`);
+    this.chapterLabel?.setText(`Chapter ${this.campaignChapter + 1}/6: ${chapter.title} | ${chapter.objective}`);
   }
 
   private performLightAttack(time: number): void {
@@ -742,6 +745,7 @@ export class PrototypeScene extends Phaser.Scene {
 
   private advanceChapter(): void {
     this.campaignChapter += 1;
+    this.campaignState = completeChapter(this.campaignState);
     for (const bully of this.bullyWeirdos) {
       bully.body.destroy();
       bully.healthBar.destroy();

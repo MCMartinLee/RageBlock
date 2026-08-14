@@ -38,6 +38,14 @@ export function completeChapter(state: CampaignState): CampaignState {
   return { ...state, chapterIndex: finalChapter ? state.chapterIndex : state.chapterIndex + 1, routeNode: 0, recoveredRewards: rewards, score: state.score + 1000, completed: finalChapter };
 }
 
+export function advanceRouteNode(state: CampaignState, optional = false): CampaignState {
+  return { ...state, routeNode: state.routeNode + 1, score: state.score + (optional ? 250 : 0) };
+}
+
+export function completeSideRoom(state: CampaignState, reward: string): CampaignState {
+  return { ...advanceRouteNode(state, true), recoveredRewards: state.recoveredRewards.includes(reward) ? state.recoveredRewards : [...state.recoveredRewards, reward] };
+}
+
 export function recordDefeat(state: CampaignState, points = 100): CampaignState {
   return { ...state, defeats: state.defeats + 1, score: state.score + points };
 }

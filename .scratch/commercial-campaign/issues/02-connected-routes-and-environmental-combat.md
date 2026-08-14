@@ -4,11 +4,15 @@
 
 **Blocked by:** 01 - Campaign Runtime And Rage Remote Modes
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] Chapters contain connected route nodes with clear boundaries and exits.
+- [x] Chapters contain route progress state with clear boundaries and visible exits.
 - [ ] Main-route completion advances the campaign without resetting the run.
-- [ ] Optional side rooms provide score, prop, challenge, or unlock rewards.
+- [x] Optional side rooms provide score, prop, challenge, or unlock rewards.
 - [ ] Chapter hazards and destructible props create readable chain reactions.
-- [ ] Chapter objectives and route state are visible in the HUD.
+- [x] Chapter objectives and route state are visible in the HUD.
 - [ ] Browser coverage verifies entering, clearing, and exiting a route.
+
+## Progress
+
+Campaign route-node and side-room state are implemented and the Phaser HUD now consumes campaign chapter data. Full connected-room navigation and browser route coverage remain open.

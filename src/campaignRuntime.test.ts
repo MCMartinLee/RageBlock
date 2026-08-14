@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_CHAPTERS, validateCampaignChapters } from "./campaignDefinition";
-import { completeChapter, createCampaignState, getCampaignRank, recordDefeat, selectRageMode } from "./campaignRuntime";
+import { advanceRouteNode, completeChapter, completeSideRoom, createCampaignState, getCampaignRank, recordDefeat, selectRageMode } from "./campaignRuntime";
 
 describe("campaign runtime", () => {
   it("validates the six-chapter campaign", () => {
@@ -21,5 +21,13 @@ describe("campaign runtime", () => {
     expect(state.recoveredRewards).toHaveLength(6);
     expect(getCampaignRank(12000)).toBe("S");
     expect(recordDefeat(state, 500).score).toBeGreaterThan(state.score);
+  });
+
+  it("tracks main route and optional side-room progress", () => {
+    const routed = advanceRouteNode(createCampaignState());
+    const sideRoom = completeSideRoom(routed, "bonus-sticker");
+    expect(sideRoom.routeNode).toBe(2);
+    expect(sideRoom.recoveredRewards).toContain("bonus-sticker");
+    expect(sideRoom.score).toBe(250);
   });
 });
