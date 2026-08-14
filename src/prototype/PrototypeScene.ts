@@ -19,8 +19,23 @@ import {
   type Point
 } from "./arenaDefinition";
 import { getAttackPresentation, type FacingDirection } from "./attackPresentation";
+import {
+  createBullyPressureState,
+  updateBullyPressure,
+  type BullyPressureState,
+  type BullyMood
+} from "./bullyPressure";
 
 const PLAYER_SPEED = 245;
+const BULLY_DAMAGE = 6;
+const PLAYER_DAMAGE_COOLDOWN_MS = 850;
+
+type BullyActor = {
+  body: Phaser.GameObjects.Container;
+  position: Point;
+  pressure: BullyPressureState;
+  moodLabel: Phaser.GameObjects.Text;
+};
 
 export class PrototypeScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -34,6 +49,9 @@ export class PrototypeScene extends Phaser.Scene {
   private attackingUntil = 0;
   private activeAttack?: Phaser.GameObjects.Container;
   private attackLabel?: Phaser.GameObjects.Text;
+  private healthLabel?: Phaser.GameObjects.Text;
+  private bullyWeirdos: BullyActor[] = [];
+  private nextPlayerDamageAt = 0;
 
   constructor() {
     super(PROTOTYPE_SCENE_KEY);
@@ -47,6 +65,11 @@ export class PrototypeScene extends Phaser.Scene {
 
     this.createSchoolyardCorner(width, height);
     this.player = this.createPlayerSilhouette(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+    this.bullyWeirdos = [
+      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true),
+      this.createBullyWeirdo({ x: 620, y: 455 }, 160, false),
+      this.createBullyWeirdo({ x: 820, y: 430 }, 320, true)
+    ];
 
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.wasd = this.input.keyboard?.addKeys({
@@ -105,6 +128,14 @@ export class PrototypeScene extends Phaser.Scene {
         color: "#f5f0e8"
       })
       .setOrigin(1, 0);
+    this.healthLabel = this.add
+      .text(width - 24, 54, "", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        color: "#8de0ff"
+      })
+      .setOrigin(1, 0);
+    this.updateHealthLabel();
   }
 
   update(time: number, delta: number): void {
@@ -143,6 +174,8 @@ export class PrototypeScene extends Phaser.Scene {
       this.activeAttack = undefined;
       this.attackLabel?.setText("Ready");
     }
+
+    this.updateBullyWeirdos(time, delta);
   }
 
   private createSchoolyardCorner(width: number, height: number): void {
@@ -192,6 +225,37 @@ export class PrototypeScene extends Phaser.Scene {
       leftEye,
       rightEye
     ]);
+  }
+
+  private createBullyWeirdo(
+    position: Point,
+    delayMs: number,
+    canCharge: boolean
+  ): BullyActor {
+    const body = this.add.container(position.x, position.y);
+    const shadow = this.add.ellipse(0, 24, 54, 14, 0x000000, 0.26);
+    const legs = this.add.rectangle(0, 15, 28, 36, 0x243039);
+    const shirt = this.add.rectangle(0, -17, 50, 54, canCharge ? 0xd1495b : 0x2aa876);
+    const head = this.add.circle(0, -54, 22, 0xd99a67);
+    const brow = this.add.rectangle(0, -62, 32, 6, 0x22181c).setRotation(canCharge ? 0.16 : -0.16);
+    const grin = this.add.rectangle(0, -45, 22, 4, 0x22181c);
+    const moodLabel = this.add
+      .text(0, -94, "taunt", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "12px",
+        color: "#f5f0e8"
+      })
+      .setOrigin(0.5);
+
+    body.add([shadow, legs, shirt, head, brow, grin, moodLabel]);
+    body.setDepth(Math.round(position.y));
+
+    return {
+      body,
+      position,
+      pressure: createBullyPressureState(this.time.now + delayMs, canCharge),
+      moodLabel
+    };
   }
 
   private getMovementInput(): Point {
@@ -257,5 +321,49 @@ export class PrototypeScene extends Phaser.Scene {
     this.activeAttack.setDepth(Math.round(this.playerPosition.y) + 10);
     this.attackingUntil = time + presentation.durationMs;
     this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
+  }
+
+  private updateBullyWeirdos(time: number, delta: number): void {
+    const seconds = delta / 1000;
+
+    for (const bully of this.bullyWeirdos) {
+      const { state, decision } = updateBullyPressure(
+        bully.pressure,
+        bully.position,
+        this.playerPosition,
+        time
+      );
+      bully.pressure = state;
+      bully.position = clampToArena({
+        x: bully.position.x + decision.velocity.x * seconds,
+        y: bully.position.y + decision.velocity.y * seconds
+      });
+
+      bully.body.setPosition(bully.position.x, bully.position.y);
+      bully.body.setDepth(Math.round(bully.position.y));
+      bully.body.setScale(decision.velocity.x < 0 ? -1 : 1, 1);
+      bully.moodLabel.setText(this.getMoodLabel(decision.mood));
+
+      if (decision.damagesPlayer && time >= this.nextPlayerDamageAt) {
+        this.playerState = {
+          ...this.playerState,
+          health: Math.max(0, this.playerState.health - BULLY_DAMAGE)
+        };
+        this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
+        this.updateHealthLabel();
+      }
+    }
+  }
+
+  private updateHealthLabel(): void {
+    this.healthLabel?.setText(`Health ${this.playerState.health}`);
+  }
+
+  private getMoodLabel(mood: BullyMood): string {
+    if (mood === "backing-off") {
+      return "back off";
+    }
+
+    return mood;
   }
 }
