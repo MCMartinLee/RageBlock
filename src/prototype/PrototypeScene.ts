@@ -36,6 +36,7 @@ import {
 } from "./bullyPressure";
 
 const PLAYER_SPEED = 245;
+const PLAYER_RUN_MULTIPLIER = 1.55;
 const BULLY_DAMAGE = 4;
 const PLAYER_DAMAGE_COOLDOWN_MS = 1050;
 
@@ -59,7 +60,7 @@ type ToyboxProp = {
 export class PrototypeScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
-  private attackKeys?: Record<"light" | "heavy" | "restart", Phaser.Input.Keyboard.Key>;
+  private actionKeys?: Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart", Phaser.Input.Keyboard.Key>;
   private player?: Phaser.GameObjects.Container;
   private playerPosition: Point = { ...PLAYER_SPAWN };
   private facing: FacingDirection = "right";
@@ -87,7 +88,9 @@ export class PrototypeScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale;
+    this.resetRunState();
     this.runStartedAt = this.time.now;
+    this.time.timeScale = 1;
 
     this.cameras.main.setBounds(0, 0, width, height);
     this.cameras.main.centerOn(width / 2, height / 2);
@@ -117,11 +120,14 @@ export class PrototypeScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D
     }) as Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
-    this.attackKeys = this.input.keyboard?.addKeys({
+    this.actionKeys = this.input.keyboard?.addKeys({
       light: Phaser.Input.Keyboard.KeyCodes.J,
       heavy: Phaser.Input.Keyboard.KeyCodes.K,
+      run: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      runAlt: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+      runAlt2: Phaser.Input.Keyboard.KeyCodes.L,
       restart: Phaser.Input.Keyboard.KeyCodes.R
-    }) as Record<"light" | "heavy" | "restart", Phaser.Input.Keyboard.Key>;
+    }) as Record<"light" | "heavy" | "run" | "runAlt" | "runAlt2" | "restart", Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) {
@@ -152,7 +158,7 @@ export class PrototypeScene extends Phaser.Scene {
         height - 70,
         [
           "Move: WASD / Arrow Keys",
-          `Reserved: ${RESERVED_CONTROLS.lightAttack.join(" / ")} light, ${RESERVED_CONTROLS.heavyAttack.join(" / ")} heavy, ${RESERVED_CONTROLS.dash.join(" / ")} dash, ${RESERVED_CONTROLS.jump.join(" / ")} jump`
+          `${RESERVED_CONTROLS.lightAttack.join(" / ")} light, ${RESERVED_CONTROLS.heavyAttack.join(" / ")} heavy, Space / ${RESERVED_CONTROLS.dash.join(" / ")} run, R restart`
         ],
         {
           fontFamily: "Arial, sans-serif",
@@ -198,7 +204,7 @@ export class PrototypeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.attackKeys && Phaser.Input.Keyboard.JustDown(this.attackKeys.restart)) {
+    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.restart)) {
       this.scene.restart();
       return;
     }
@@ -207,11 +213,11 @@ export class PrototypeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.attackKeys && Phaser.Input.Keyboard.JustDown(this.attackKeys.light)) {
+    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.light)) {
       this.performLightAttack(time);
     }
 
-    if (this.attackKeys && Phaser.Input.Keyboard.JustDown(this.attackKeys.heavy)) {
+    if (this.actionKeys && Phaser.Input.Keyboard.JustDown(this.actionKeys.heavy)) {
       this.performHeavyAttack(time);
     }
 
@@ -223,9 +229,10 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     const seconds = delta / 1000;
+    const speed = PLAYER_SPEED * (this.isRunning() ? PLAYER_RUN_MULTIPLIER : 1);
     const nextPosition = clampToArena({
-      x: this.playerPosition.x + movement.x * PLAYER_SPEED * seconds,
-      y: this.playerPosition.y + movement.y * PLAYER_SPEED * seconds
+      x: this.playerPosition.x + movement.x * speed * seconds,
+      y: this.playerPosition.y + movement.y * speed * seconds
     });
 
     this.playerPosition = nextPosition;
@@ -277,7 +284,7 @@ export class PrototypeScene extends Phaser.Scene {
     const legs = this.add.rectangle(0, 16, 32, 42, 0x232026);
     const hoodie = this.add.rectangle(0, -18, 54, 62, 0x7a3bd1);
     const head = this.add.circle(0, -62, 24, 0xf0b36f);
-    const hair = this.add.triangle(0, -88, -26, 10, 0, -18, 28, 10, 0x17151b);
+    const hair = this.add.ellipse(0, -82, 42, 24, 0x17151b);
     const leftEye = this.add.rectangle(-8, -64, 10, 4, 0xf7f0a1).setRotation(-0.25);
     const rightEye = this.add.rectangle(9, -64, 10, 4, 0xf7f0a1).setRotation(0.25);
 
@@ -379,6 +386,31 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     return movement;
+  }
+
+  private isRunning(): boolean {
+    return Boolean(
+      this.actionKeys?.run.isDown ||
+        this.actionKeys?.runAlt.isDown ||
+        this.actionKeys?.runAlt2.isDown
+    );
+  }
+
+  private resetRunState(): void {
+    this.playerPosition = { ...PLAYER_SPAWN };
+    this.facing = "right";
+    this.comboStep = 0;
+    this.playerState = createPlayerState();
+    this.combatRun = createCombatRunState();
+    this.attackingUntil = 0;
+    this.activeAttack = undefined;
+    this.damageTaken = 0;
+    this.hitsLanded = 0;
+    this.runEnded = false;
+    this.resultOverlay = undefined;
+    this.bullyWeirdos = [];
+    this.toyboxProps = [];
+    this.nextPlayerDamageAt = 0;
   }
 
   private performLightAttack(time: number): void {

@@ -16,6 +16,7 @@ Open the URL Vite prints, usually `http://localhost:5173`.
 - WASD or arrow keys: move
 - J or left click: light combo
 - K or right click: heavy launcher
+- Space, Shift, or L: run
 - R: restart after Block Cleared or Knocked Out
 
 ## Verify
