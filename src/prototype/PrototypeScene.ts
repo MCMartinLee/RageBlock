@@ -37,6 +37,7 @@ import {
 import { bufferAttack, consumeBufferedAttack, getPlayerMotionState, type PlayerAction } from "./playerController";
 import { getCampaignChapter } from "../campaignDefinition";
 import { completeChapter, createCampaignState, type CampaignState } from "../campaignRuntime";
+import { ENEMY_ARCHETYPES, type PlayerAnimationState } from "./enemyArchetypes";
 
 const PLAYER_SPEED = 245;
 const PLAYER_RUN_MULTIPLIER = 1.55;
@@ -80,6 +81,7 @@ export class PrototypeScene extends Phaser.Scene {
   private rageLabel?: Phaser.GameObjects.Text;
   private defeatLabel?: Phaser.GameObjects.Text;
   private stateLabel?: Phaser.GameObjects.Text;
+  private playerAnimationState: PlayerAnimationState = "idle";
   private damageTaken = 0;
   private hitsLanded = 0;
   private runStartedAt = 0;
@@ -297,7 +299,8 @@ export class PrototypeScene extends Phaser.Scene {
     this.player.setScale(this.facing === "right" ? 1 : -1, 1);
     this.player.setDepth(Math.round(nextPosition.y));
     this.attackLabel?.setColor(running ? "#8de0ff" : "#f5f0e8");
-    this.stateLabel?.setText(`State ${getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running)}`);
+    this.playerAnimationState = getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running);
+    this.stateLabel?.setText(`State ${this.playerAnimationState}`);
     if (this.exitOpen && nextPosition.x >= ARENA_BOUNDS.right - 42) {
       this.exitOpen = false;
       this.playerPosition = { ...PLAYER_SPAWN };
@@ -411,7 +414,7 @@ export class PrototypeScene extends Phaser.Scene {
       position,
       knockbackVelocity: { x: 0, y: 0 },
       pressure: createBullyPressureState(this.time.now + delayMs, canCharge),
-      combat: createBullyWeirdoState({ health: isBoss ? 60 : variant === "heavy" ? 30 : 18 }),
+      combat: createBullyWeirdoState({ health: isBoss ? ENEMY_ARCHETYPES.boss.health : ENEMY_ARCHETYPES[variant].health }),
       moodLabel,
       healthBar: this.add.rectangle(position.x, position.y - (isBoss ? 112 : 86), isBoss ? 96 : 48, 7, isBoss ? 0xff5f4d : variant === "heavy" ? 0xff9d4d : 0x8de0ff),
       variant,
@@ -497,6 +500,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.facing = "right";
     this.comboStep = 0;
     this.playerState = createPlayerState();
+    this.playerAnimationState = "idle";
     this.combatRun = createCombatRunState();
     this.attackingUntil = 0;
     this.bufferedAttack = undefined;
@@ -592,6 +596,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.attackingUntil = time + presentation.durationMs;
     this.attackLabel?.setText(`${presentation.label} | knockback ${attack.knockback}`);
     this.stateLabel?.setText(`State ${attack.kind}`);
+    this.playerAnimationState = attack.kind;
     this.applyAttackToBullyWeirdos(attack, hitboxShape);
     this.applyAttackToToyboxProps(attack, hitboxShape);
     this.playTone(attack.kind === "heavy" ? 120 : 220, attack.kind === "heavy" ? 0.12 : 0.06);
@@ -639,8 +644,8 @@ export class PrototypeScene extends Phaser.Scene {
       });
       if (bully.variant === "thrower") {
         bully.position = clampToArena({
-          x: bully.position.x - decision.velocity.x * seconds * 0.45,
-          y: bully.position.y - decision.velocity.y * seconds * 0.45
+          x: bully.position.x - decision.velocity.x * seconds * (1 - ENEMY_ARCHETYPES.thrower.approachScale),
+          y: bully.position.y - decision.velocity.y * seconds * (1 - ENEMY_ARCHETYPES.thrower.approachScale)
         });
       }
 
@@ -659,6 +664,7 @@ export class PrototypeScene extends Phaser.Scene {
         };
         this.damageTaken += BULLY_DAMAGE;
         this.nextPlayerDamageAt = time + PLAYER_DAMAGE_COOLDOWN_MS;
+        this.playerAnimationState = "hurt";
         this.stateLabel?.setText("State hurt");
         this.updateHealthLabel();
         this.flashTarget(this.player, 0x8de0ff, 120);
@@ -777,7 +783,8 @@ export class PrototypeScene extends Phaser.Scene {
     }
 
     this.runEnded = true;
-    this.stateLabel?.setText(title === "Block Cleared" ? "State win" : "State defeated");
+    this.playerAnimationState = title === "Block Cleared" ? "victory" : "defeated";
+    this.stateLabel?.setText(`State ${this.playerAnimationState}`);
     const elapsedSeconds = Math.max(0, Math.round((this.time.now - this.runStartedAt) / 1000));
     const { width, height } = this.scale;
     const panel = this.add.rectangle(0, 0, 420, 250, 0x16171d, 0.92).setStrokeStyle(3, 0xf0c15c);
