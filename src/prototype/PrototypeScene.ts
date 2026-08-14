@@ -320,7 +320,7 @@ export class PrototypeScene extends Phaser.Scene {
       this.exitOpen = false;
       this.playerPosition = { ...PLAYER_SPAWN };
       this.player.setPosition(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
-      if (this.campaignChapter < 2) this.advanceChapter();
+      if (this.campaignChapter < 5) this.advanceChapter();
       else this.endRun("Block Cleared");
     }
 
@@ -775,7 +775,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.updateRunLabels();
     if (isBlockCleared(this.combatRun)) {
       this.exitOpen = true;
-      this.attackLabel?.setText(this.campaignChapter < 2 ? "EXIT OPEN | Reach NEXT BLOCK" : "BOSS DOWN | Reach NEXT BLOCK");
+      this.attackLabel?.setText(this.campaignChapter < 5 ? "EXIT OPEN | Reach NEXT BLOCK" : "BOSS DOWN | Reach NEXT BLOCK");
     }
   }
 
@@ -787,7 +787,7 @@ export class PrototypeScene extends Phaser.Scene {
       bully.healthBar.destroy();
     }
     this.bullyWeirdos = [
-      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, this.campaignChapter === 1 ? "thrower" : "heavy", this.campaignChapter === 2),
+      this.createBullyWeirdo({ x: 710, y: 375 }, 0, true, this.campaignChapter === 1 ? "thrower" : "heavy", this.campaignChapter === 5),
       this.createBullyWeirdo({ x: 620, y: 455 }, 160, false, "bully"),
       this.createBullyWeirdo({ x: 820, y: 430 }, 320, true, "charger"),
       this.createBullyWeirdo({ x: 760, y: 465 }, 480, false, this.campaignChapter === 1 ? "thrower" : "heavy"),
