@@ -1,6 +1,6 @@
 # RageBlock
 
-RageBlock is an original browser-based cartoon brawler prototype focused on heavy hits, 2.5D movement, bully weirdos, and toybox chaos.
+RageBlock is an original browser-based cartoon brawler about a kid with cartoon rage taking on three escalating neighborhood trouble spots: The Back Lot, Arcade Strip, and The Rooftop.
 
 ## Run locally
 
@@ -10,6 +10,8 @@ npm run dev
 ```
 
 Open the URL Vite prints, usually `http://localhost:5173`.
+
+The current playable build enters through a title screen and contains the combat foundation for the three-chapter campaign. The campaign data lives in `src/campaignDefinition.ts` so arena waves, enemy variants, bosses, and progression can be expanded without rewriting the scene.
 
 ## Prototype controls
 

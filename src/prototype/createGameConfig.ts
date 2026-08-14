@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { PrototypeScene } from "./PrototypeScene";
+import { TitleScene } from "../TitleScene";
 
 export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
   return {
@@ -8,7 +9,7 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
     width: 960,
     height: 540,
     backgroundColor: "#16171d",
-    scene: [PrototypeScene],
+    scene: [TitleScene, PrototypeScene],
     physics: {
       default: "arcade",
       arcade: {
