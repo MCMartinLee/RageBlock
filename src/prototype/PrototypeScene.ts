@@ -94,6 +94,7 @@ export class PrototypeScene extends Phaser.Scene {
   private paused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
   private audioContext?: AudioContext;
+  private exitOpen = false;
 
   constructor() {
     super(PROTOTYPE_SCENE_KEY);
@@ -297,6 +298,13 @@ export class PrototypeScene extends Phaser.Scene {
     this.player.setDepth(Math.round(nextPosition.y));
     this.attackLabel?.setColor(running ? "#8de0ff" : "#f5f0e8");
     this.stateLabel?.setText(`State ${getPlayerMotionState(movement.x !== 0 || movement.y !== 0, running)}`);
+    if (this.exitOpen && nextPosition.x >= ARENA_BOUNDS.right - 42) {
+      this.exitOpen = false;
+      this.playerPosition = { ...PLAYER_SPAWN };
+      this.player.setPosition(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+      if (this.campaignChapter < 2) this.advanceChapter();
+      else this.endRun("Block Cleared");
+    }
 
     if (this.activeAttack && time >= this.attackingUntil) {
       this.activeAttack.destroy();
@@ -502,6 +510,7 @@ export class PrototypeScene extends Phaser.Scene {
     this.nextPlayerDamageAt = 0;
     this.campaignChapter = 0;
     this.campaignState = createCampaignState();
+    this.exitOpen = false;
     this.paused = false;
     this.pauseOverlay = undefined;
   }
@@ -735,11 +744,8 @@ export class PrototypeScene extends Phaser.Scene {
     };
     this.updateRunLabels();
     if (isBlockCleared(this.combatRun)) {
-      if (this.campaignChapter < 2) {
-        this.advanceChapter();
-      } else {
-        this.endRun("Block Cleared");
-      }
+      this.exitOpen = true;
+      this.attackLabel?.setText(this.campaignChapter < 2 ? "EXIT OPEN | Reach NEXT BLOCK" : "BOSS DOWN | Reach NEXT BLOCK");
     }
   }
 
