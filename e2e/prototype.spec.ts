@@ -341,7 +341,7 @@ test("campaign advances through every route, victory, replay, and title", async 
 });
 
 test("the complete required campaign is beatable using only player controls", async ({ page }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(process.env.CI ? 480_000 : 240_000);
   await startGame(page, "2");
 
   for (let chapter = 0; chapter < 6; chapter += 1) {
