@@ -4,6 +4,7 @@ test("title and combat canvases are visibly rendered", async ({ page }, testInfo
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/");
   await page.waitForFunction(() => window.__RAGEBLOCK_TITLE_READY__ === true);
+  expect(await page.evaluate(() => window.__RAGEBLOCK_TITLE_LAYOUT_OK__)).toBe(true);
   const titleShot = await page.screenshot({ path: testInfo.outputPath("title.png") });
   expect(titleShot.byteLength).toBeGreaterThan(100_000);
 
@@ -17,6 +18,9 @@ test("title and combat canvases are visibly rendered", async ({ page }, testInfo
   await page.waitForTimeout(1300);
   const combatShot = await page.screenshot({ path: testInfo.outputPath("combat.png") });
   expect(combatShot.byteLength).toBeGreaterThan(20_000);
+  expect(await page.evaluate(() => window.__RAGEBLOCK__!.getState().hudBoundsOk)).toBe(true);
+  await page.waitForTimeout(5200);
+  expect(await page.evaluate(() => window.__RAGEBLOCK__!.getState().backdropWidth)).toBeGreaterThan(950);
 
   await page.keyboard.press("p");
   await page.waitForFunction(() => window.__RAGEBLOCK__!.getState().paused);
@@ -27,11 +31,18 @@ test("title and combat canvases are visibly rendered", async ({ page }, testInfo
   await page.evaluate(() => window.__RAGEBLOCK__!.clearWave());
   await page.keyboard.down(" ");
   await page.keyboard.down("d");
+  await page.waitForFunction(() => window.__RAGEBLOCK__!.getState().phase === "climax");
+  await page.keyboard.up("d");
+  await page.keyboard.up(" ");
+  await page.evaluate(() => window.__RAGEBLOCK__!.clearWave());
+  await page.keyboard.down(" ");
+  await page.keyboard.down("d");
   await page.waitForFunction(() => window.__RAGEBLOCK__!.getState().chapter === 1);
   await page.keyboard.up("d");
   await page.keyboard.up(" ");
   const transitionShot = await page.screenshot({ path: testInfo.outputPath("transition.png") });
   expect(transitionShot.byteLength).toBeGreaterThan(20_000);
+  expect(await page.evaluate(() => window.__RAGEBLOCK__!.getState().hudBoundsOk)).toBe(true);
 
   await page.waitForTimeout(1300);
   await page.evaluate(() => window.__RAGEBLOCK__!.defeatPlayer());

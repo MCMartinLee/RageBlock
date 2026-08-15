@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { CampaignScene } from "./PrototypeScene";
+import { CampaignScene } from "./CampaignScene";
 import { TitleScene } from "../TitleScene";
 
 export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
@@ -10,6 +10,9 @@ export function createGameConfig(parent: string): Phaser.Types.Core.GameConfig {
     height: 540,
     backgroundColor: "#16171d",
     scene: [TitleScene, CampaignScene],
+    callbacks: {
+      postBoot: (game) => game.canvas.addEventListener("contextmenu", (event) => event.preventDefault())
+    },
     physics: {
       default: "arcade",
       arcade: {

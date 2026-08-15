@@ -9,7 +9,7 @@ RageBlock must become a complete browser game that players can understand and fi
 
 Build RageBlock as an original, browser-only, single-player cartoon brawler with a six-chapter campaign. The player is a mischievous kid recovering a confiscated homemade Rage Remote before sunset. Each chapter has an authored main route, optional side content, a faction identity, animated environments, a boss or climax, and a reward. The player chooses Crash, Zip, or Junkstorm Rage modes to change combat expression and replays chapters for score, ranks, modifiers, and cosmetic unlocks.
 
-The finished game must be visually prepared and animated across the entire player-facing experience: title screen, backgrounds, characters, enemies, bosses, props, hazards, attacks, hit reactions, launches, landings, defeat, victory, rage activation, UI transitions, and chapter transitions. “Commercial-quality” is the quality bar, not a requirement to sell the game.
+The finished game must be visually prepared and animated across the entire player-facing experience: title screen, backgrounds, characters, enemies, bosses, props, hazards, attacks, hit reactions, launches, landings, defeat, victory, rage activation, UI transitions, and chapter transitions. "Commercial-quality" is the quality bar, not a requirement to sell the game.
 
 ## User Stories
 

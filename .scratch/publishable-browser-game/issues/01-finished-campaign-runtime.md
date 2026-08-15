@@ -14,4 +14,4 @@
 
 ## Answer
 
-Campaign progress is now loaded and saved through browser storage, mode selection happens on the title screen, defeat/restart/replay transitions preserve the intended progress, score and rewards are authoritative, and Crash, Zip, and Junkstorm apply distinct combat tuning.
+Campaign progress is loaded and saved through browser storage with migration for older saves. Chapter and cosmetic unlocks, selected chapter replay, climax checkpoints, idempotent side rewards, defeat/restart/full-replay transitions, score, rank, and rewards are authoritative. Starting chapter one from a completed title save creates a fresh advancing mastery campaign while preserving unlocks. Replays unlock persistent chapter-mastery modifiers and color sets. Crash, Zip, Junkstorm, and earned mastery apply distinct movement, attack-recovery, knockback, and prop tuning. One pause-aware gameplay clock drives movement, attacks, AI, reactions, projectiles, cooldowns, boss rules, and run time.

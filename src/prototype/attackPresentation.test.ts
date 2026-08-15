@@ -17,6 +17,8 @@ describe("attack presentation", () => {
     const heavy = getAttackPresentation(heavyAttack, "right");
 
     expect(heavy.durationMs).toBeGreaterThan(light.durationMs);
+    expect(heavy.impactDelayMs).toBeGreaterThan(light.impactDelayMs);
+    expect(heavy.impactDelayMs).toBeLessThan(heavy.durationMs);
     expect(heavy.hitboxWidth).toBeGreaterThan(light.hitboxWidth);
     expect(heavy.label).toBe("HEAVY LAUNCH");
   });

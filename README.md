@@ -13,10 +13,11 @@ RageBlock is an original, desktop-browser, single-player cartoon brawler. A kid 
 - `P`: pause or resume
 - `R`: restart, retry a checkpoint, or replay after victory
 - `T`: return to the title
+- `Q` / `E` on the title screen: choose an unlocked chapter
 
-A standard gamepad is supported: left stick moves, `A` attacks or starts, `B` launches, right trigger runs, Menu pauses, `Y` restarts, and View returns to the title.
+A standard gamepad is supported: left stick moves, `A` attacks or starts, `B` launches, right trigger runs, Menu pauses, `Y` restarts, and View returns to the title. On the title screen, the bumpers choose a Rage mode and the D-pad chooses an unlocked chapter.
 
-Choose Crash, Zip, or Junkstorm mode on the title screen. Campaign checkpoints, best score, rewards, and the selected mode persist in local browser storage.
+Choose Crash, Zip, or Junkstorm mode on the title screen. Each chapter has its own crew silhouette treatment, encounter composition, signature breakable set piece, moving hazard, main route, optional side room with a guarded combat cache, and climax. Defeating enemies restores a little health, and authored encounter boundaries provide a full refresh. Replaying cleared chapters unlocks mastery modifiers and crew color sets, including during a fresh campaign replay after victory. Campaign checkpoints, chapter unlocks, cosmetics, best score, rewards, mastery, and the selected mode persist in local browser storage.
 
 ## Run Locally
 
@@ -36,7 +37,7 @@ npm run verify
 npm run build
 ```
 
-The release suite covers the real combat loop, all six chapter exits, checkpoint persistence, defeat and retry, pause, victory, replay, title return, narrow desktop scaling, visual states, startup payload, and frame cadence.
+The release suite covers a hazard-aware control-only title-to-ending campaign clear, all twelve required campaign phases, optional side rooms, environmental chain reactions, checkpoint persistence, pause-clock integrity, defeat and retry, fresh post-victory campaigns, mastery replay and reward naming, a warned real-input boss clear, victory, title return, six hazard renders, narrow desktop layout geometry, visual states, startup payload, and frame cadence.
 
 ## Release Maintenance
 

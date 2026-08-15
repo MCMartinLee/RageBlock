@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getLightComboAttack, spendRageOnHeavyAttack, createPlayerState } from "./combatRules";
-import { applyAttackToProp, createPropState } from "./propReaction";
+import { applyAttackToProp, createPropState, getPropFrame, getPropPresentation } from "./propReaction";
 
 describe("toybox prop reactions", () => {
   it("knocks props in the player's facing direction", () => {
@@ -25,5 +25,12 @@ describe("toybox prop reactions", () => {
 
     expect(reaction.state.broken).toBe(false);
     expect(reaction.velocity.y).toBeLessThan(0);
+  });
+
+  it("uses authored chapter-setpiece art for signature props", () => {
+    expect(getPropPresentation("arcade-sign")).toMatchObject({ texture: "rageblock-signature-props", frame: 1 });
+    expect(getPropPresentation("relay-box").frame).toBe(5);
+    expect(getPropFrame("arcade-sign", true)).toBe(7);
+    expect(getPropFrame("relay-box", true)).toBe(11);
   });
 });

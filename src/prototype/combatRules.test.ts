@@ -6,6 +6,7 @@ import {
   createPlayerState,
   getLightComboAttack,
   isBlockCleared,
+  recoverPlayerHealth,
   spendRageOnHeavyAttack
 } from "./combatRules";
 
@@ -66,6 +67,11 @@ describe("core combat rules", () => {
     expect(empowered.player.rage).toBe(0);
     expect(normal.attack.empowered).toBe(false);
     expect(normal.player.rage).toBe(40);
+  });
+
+  it("recovers health between fights without exceeding the campaign maximum", () => {
+    expect(recoverPlayerHealth(createPlayerState({ health: 61 }), 8).health).toBe(69);
+    expect(recoverPlayerHealth(createPlayerState({ health: 97 }), 8).health).toBe(100);
   });
 
   it("clears the block after 8 bully weirdos are defeated", () => {

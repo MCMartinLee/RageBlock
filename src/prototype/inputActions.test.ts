@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isGamepadActionPressed, isNormalizedActionHeld, isNormalizedActionPressed } from "./inputActions";
+import { getTitleGamepadNavigation, isGamepadActionPressed, isNormalizedActionHeld, isNormalizedActionPressed } from "./inputActions";
 
 describe("normalized input actions", () => {
   it("maps standard gamepad buttons to every player action", () => {
@@ -20,5 +20,11 @@ describe("normalized input actions", () => {
   it("normalizes held run input", () => {
     expect(isNormalizedActionHeld({ run: true }, [], "run")).toBe(true);
     expect(isNormalizedActionHeld({}, Array.from({ length: 8 }, (_, i) => i === 7), "run")).toBe(true);
+  });
+
+  it("maps rising controller edges for title mode and chapter selection", () => {
+    const buttons = Array.from({ length: 16 }, (_, index) => [0, 5, 15].includes(index));
+    expect(getTitleGamepadNavigation(buttons, [])).toEqual({ start: true, modeDelta: 1, chapterDelta: 1 });
+    expect(getTitleGamepadNavigation(buttons, buttons)).toEqual({ start: false, modeDelta: 0, chapterDelta: 0 });
   });
 });

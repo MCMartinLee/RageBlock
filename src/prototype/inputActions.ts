@@ -32,3 +32,14 @@ export function isNormalizedActionHeld(
 ): boolean {
   return Boolean(keyboardHeld[action]) || isGamepadActionPressed(gamepadButtons, action);
 }
+
+export type TitleGamepadNavigation = { start: boolean; modeDelta: -1 | 0 | 1; chapterDelta: -1 | 0 | 1 };
+
+export function getTitleGamepadNavigation(buttons: readonly boolean[], previousButtons: readonly boolean[]): TitleGamepadNavigation {
+  const pressed = (index: number) => Boolean(buttons[index]) && !previousButtons[index];
+  return {
+    start: pressed(0),
+    modeDelta: pressed(5) ? 1 : pressed(4) ? -1 : 0,
+    chapterDelta: pressed(15) ? 1 : pressed(14) ? -1 : 0
+  };
+}

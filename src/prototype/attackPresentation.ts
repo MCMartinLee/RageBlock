@@ -5,6 +5,7 @@ export type FacingDirection = "left" | "right";
 export type AttackPresentation = {
   color: number;
   durationMs: number;
+  impactDelayMs: number;
   hitboxOffsetX: number;
   hitboxWidth: number;
   hitboxHeight: number;
@@ -23,6 +24,7 @@ export function getAttackPresentation(
   return {
     color: isHeavy ? 0xff5f4d : isFinisher ? 0xf0c15c : 0x8de0ff,
     durationMs: isHeavy ? 310 : 150,
+    impactDelayMs: isHeavy ? 120 : 45,
     hitboxOffsetX: direction * (42 + hitboxWidth / 2),
     hitboxWidth,
     hitboxHeight: isHeavy ? 72 : 52,

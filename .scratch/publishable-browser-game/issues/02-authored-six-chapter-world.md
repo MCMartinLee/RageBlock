@@ -15,4 +15,4 @@
 
 ## Answer
 
-All six chapters now carry authored palette, route, side-room, hazard, reward, and climax data. The Phaser world redraws and animates per chapter, optional side rooms are physically discoverable, moving props can chain-hit enemies, and Playwright verifies the complete six-exit campaign route.
+All six chapters carry authored faction, palette, route, optional-room, typed hazard, reward, roster, and climax data. Main, side-room, and climax encounters use chapter-specific wave sizes, spawn compositions, prop layouts, silhouette accessories, crew color treatments, dedicated intact/broken signature set-piece art, and side-availability-aware objectives; the finale replaces its climax wave with the Block Captain. Six separately prepared moving hazards can damage enemies and launch props into further impacts. Playwright verifies every required route, the guarded optional-room flow, all six hazard renders, and environmental chain reactions.

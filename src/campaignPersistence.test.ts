@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadCampaign, saveCampaign, saveSelectedMode } from "./campaignPersistence";
+import { loadCampaign, loadStartChapter, saveCampaign, saveSelectedMode, saveStartChapter } from "./campaignPersistence";
 import { completeChapter, createCampaignState } from "./campaignRuntime";
 
 function memoryStorage() {
@@ -24,9 +24,28 @@ describe("campaign persistence", () => {
 
   it("applies a newly selected mode to saved progress", () => {
     const storage = memoryStorage();
-    saveCampaign(storage, completeChapter(createCampaignState("crash")));
+    const progressed = completeChapter(createCampaignState("crash"));
+    saveCampaign(storage, completeChapter(progressed, 0));
     saveSelectedMode(storage, "junkstorm");
     expect(loadCampaign(storage).mode).toBe("junkstorm");
     expect(loadCampaign(storage).modifiers).toContain("prop-launch");
+    expect(loadCampaign(storage).modifiers).toContain("back-lot-mastery");
+  });
+
+  it("stores and clamps the chapter selected for play", () => {
+    const storage = memoryStorage();
+    saveStartChapter(storage, 4);
+    expect(loadStartChapter(storage, 5)).toBe(4);
+    saveStartChapter(storage, 99);
+    expect(loadStartChapter(storage, 5)).toBe(5);
+    storage.setItem("rageblock-start-chapter", "broken");
+    expect(loadStartChapter(storage, 5)).toBe(0);
+  });
+
+  it("migrates saves from before chapter unlocks and selected starts existed", () => {
+    const storage = memoryStorage();
+    storage.setItem("rageblock-campaign-v1", JSON.stringify({ chapterIndex: 0, score: 4200, mode: "crash", recoveredRewards: ["crash-core", "zip-core", "sticker-pack", "junkstorm-core"] }));
+    expect(loadCampaign(storage).unlockedChapters).toEqual([0, 1, 2, 3, 4]);
+    expect(loadStartChapter(storage, 5, loadCampaign(storage).chapterIndex)).toBe(0);
   });
 });

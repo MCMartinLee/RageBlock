@@ -28,6 +28,7 @@ export type CombatRunState = {
 
 const BLOCK_CLEAR_DEFEATS = 8;
 const RAGE_METER_MAX = 100;
+const PLAYER_HEALTH_MAX = 100;
 
 const LIGHT_COMBO: Array<Omit<AttackOutcome, "kind" | "empowered">> = [
   {
@@ -61,6 +62,13 @@ export function createPlayerState(overrides: Partial<PlayerState> = {}): PlayerS
     health: 100,
     rage: 0,
     ...overrides
+  };
+}
+
+export function recoverPlayerHealth(player: PlayerState, amount: number): PlayerState {
+  return {
+    ...player,
+    health: Math.min(PLAYER_HEALTH_MAX, player.health + Math.max(0, amount))
   };
 }
 
